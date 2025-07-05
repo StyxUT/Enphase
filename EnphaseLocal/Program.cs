@@ -40,7 +40,7 @@ var retryPolicy = HttpPolicyExtensions
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddHttpClient<EnphaseService>()
+builder.Services.AddHttpClient<IEnphaseService, EnphaseService>()
     .ConfigureHttpClient((serviceProvider, client) =>
     {
         var optionsMonitor = serviceProvider.GetRequiredService<IOptionsMonitor<EnphaseOptions>>();
@@ -64,6 +64,12 @@ builder.Services.AddHttpClient<EnphaseService>()
         return handler;
     });
 
+builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteOptions>(options =>
+{
+    options.LowercaseUrls = true;
+    options.LowercaseQueryStrings = true;
+    options.ConstraintMap["caseInsensitive"] = typeof(Microsoft.AspNetCore.Routing.Constraints.RegexRouteConstraint);
+});
 
 var app = builder.Build();
 
@@ -71,11 +77,41 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-ProductionEndpoints.Configure(app);
-
-app.UseHttpsRedirection();
+// Only use HTTPS redirection outside production (e.g., for local dev)
+if (!app.Environment.IsProduction())
+{
+    app.UseHttpsRedirection();
+}
 app.UseHttpLogging();
 
-app.Logger.LogInformation("Enphase Local v0.1.0");
+// Map endpoints (moved from Endpoint.cs)
+app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
+{
+    logger.LogDebug("GET NetPowerProduction called");
+    var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
+    return Results.Ok(netPowerProduction);
+});
+
+app.MapGet("/healthcheck", (IEnphaseService envoyClient, ILogger<Program> logger) =>
+{
+    logger.LogDebug("GET HealthCheck called");
+    return Results.NoContent();
+});
+
+app.MapGet("/production", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
+{
+    logger.LogDebug("GET Production called");
+    var data = await envoyClient.GetProductionDataAsync();
+    return Results.Ok(data.Production);
+});
+
+app.MapGet("/consumption", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
+{
+    logger.LogDebug("GET Consumption called");
+    var data = await envoyClient.GetProductionDataAsync();
+    return Results.Ok(data.Consumption);
+});
+
+app.Logger.LogInformation("Enphase Local v0.1.1");
 
 app.Run();

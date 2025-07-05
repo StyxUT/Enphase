@@ -28,7 +28,7 @@
             double VahToday,
             double VarhLeadToday,
             double VarhLagToday,
-            IReadOnlyList<Line> Lines
+            IReadOnlyList<Line>? Lines
         );
 
         public record Line(
@@ -69,7 +69,7 @@
             double? VahToday,
             double? VarhLeadToday,
             double? VarhLagToday,
-            IReadOnlyList<Line> Lines
+            IReadOnlyList<Line>? Lines
         );
 
         public record Storage(

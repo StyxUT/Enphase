@@ -4,8 +4,8 @@ namespace EnphaseLocal.Services;
 
 public interface IEnphaseService
 {
-    //internal ProductionDataDto GetProductionDataAsync();
-    //internal double GetNetPowerProductionAsync();
-
+    Task<ProductionDataDto.Root> GetProductionDataAsync();
+    Task<double> GetNetPowerProductionAsync();
+    double CalculateNetPowerProduction();
 }
 
