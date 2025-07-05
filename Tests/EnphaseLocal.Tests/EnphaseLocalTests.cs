@@ -16,6 +16,7 @@ namespace PowerProduction.Tests
         private readonly EnphaseService _enphaseLocal;
         private readonly HttpClient _httpClient;
         private readonly IOptions<EnphaseOptions> _options;
+        private readonly Mock<ILogger<EnphaseService>> _mockLogger;
 
         public EnphaseLocalTests()
         {
@@ -24,7 +25,8 @@ namespace PowerProduction.Tests
             var fakeJson = @"{""production"": [{""type"": ""inverters"", ""activeCount"": 1, ""readingTime"": 123, ""wNow"": 1000.0, ""whLifetime"": 10000}], ""consumption"": [{""type"": ""eim"", ""activeCount"": 1, ""measurementType"": ""total-consumption"", ""readingTime"": 123, ""wNow"": 500.0, ""whLifetime"": 5000}], ""storage"": []}";
             mockHttp.When("http://localhost/production.json").Respond("application/json", fakeJson);
             _httpClient = new HttpClient(mockHttp) { BaseAddress = new Uri("http://localhost") };
-            _enphaseLocal = new EnphaseService(_httpClient, _options);
+            _mockLogger = new Mock<ILogger<EnphaseService>>();
+            _enphaseLocal = new EnphaseService(_httpClient, _options, _mockLogger.Object);
         }
 
         [Fact]
@@ -61,7 +63,7 @@ namespace PowerProduction.Tests
             var invalidJson = @"{ invalid json }";
             mockHttp.When("http://localhost/production.json").Respond("application/json", invalidJson);
             var httpClient = new HttpClient(mockHttp) { BaseAddress = new Uri("http://localhost") };
-            var service = new EnphaseService(httpClient, _options);
+            var service = new EnphaseService(httpClient, _options, _mockLogger.Object);
             await Assert.ThrowsAsync<System.Text.Json.JsonException>(() => service.GetProductionDataAsync());
         }
 
@@ -71,7 +73,7 @@ namespace PowerProduction.Tests
             var mockHttp = new MockHttpMessageHandler();
             mockHttp.When("http://localhost/production.json").Respond(System.Net.HttpStatusCode.InternalServerError);
             var httpClient = new HttpClient(mockHttp) { BaseAddress = new Uri("http://localhost") };
-            var service = new EnphaseService(httpClient, _options);
+            var service = new EnphaseService(httpClient, _options, _mockLogger.Object);
             await Assert.ThrowsAsync<HttpRequestException>(() => service.GetProductionDataAsync());
         }
 
@@ -148,7 +150,7 @@ namespace PowerProduction.Tests
             var mockHttp = new MockHttpMessageHandler();
             var options = Options.Create(new EnphaseOptions { BearerToken = "asdf", BaseAddress = "http://localhost" });
             var httpClient = new HttpClient(mockHttp) { BaseAddress = new Uri("http://localhost") };
-            var service = new EnphaseService(httpClient, options);
+            var service = new EnphaseService(httpClient, options, _mockLogger.Object);
 
             // Use reflection to set the private _productionDataDto field
             var field = typeof(EnphaseService).GetField("_productionDataDto", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);

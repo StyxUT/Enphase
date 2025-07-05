@@ -89,7 +89,32 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
 {
     logger.LogDebug("GET NetPowerProduction called");
     var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
-    return Results.Ok(netPowerProduction);
+    var roundedNetPower = Math.Round(netPowerProduction);
+    string color = roundedNetPower > 250 ? "#28a745" : roundedNetPower >= 0 ? "#ffc107" : "#dc3545";
+    var html = $@"<!DOCTYPE html>
+<html lang=""en"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+    <title>Net Power Production</title>
+    <meta http-equiv=""refresh"" content=""60"">
+    <style>
+        body {{ font-weight: bold; font-family: Arial, sans-serif; background: #f8f9fa; color: #222; margin: 2em; }}
+        .container {{ background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 2em; max-width: 400px; margin: auto; }}
+        h1 {{ font-size: 1.5em; margin-bottom: 1em; }}
+        .label {{ font-weight: bold; }}
+        .value {{ font-size: 2em; }}
+    </style>
+</head>
+<body>
+    <div class=""container"">
+        <h1>Net Power Production</h1>
+        <div><span class=""label"">Current Net Power Production:</span></div>
+        <div class=""value"" style=""color: {color};"">{roundedNetPower} W</div>
+    </div>
+</body>
+</html>";
+    return Results.Content(html, "text/html");
 });
 
 app.MapGet("/healthcheck", (IEnphaseService envoyClient, ILogger<Program> logger) =>
@@ -112,6 +137,6 @@ app.MapGet("/consumption", async (IEnphaseService envoyClient, ILogger<Program> 
     return Results.Ok(data.Consumption);
 });
 
-app.Logger.LogInformation("Enphase Local v0.1.1");
+app.Logger.LogInformation("Enphase Local v0.1.2");
 
 app.Run();
