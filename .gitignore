@@ -155,9 +155,9 @@ coverage*.info
 *.coveragexml
 
 # NCrunch
-_NCrunch_*
+_NCrunch_* 
 .*crunch*.local.xml
-nCrunchTemp_*
+nCrunchTemp_* 
 
 # MightyMoose
 *.mm.*
@@ -258,7 +258,7 @@ Generated_Code/
 # to a newer Visual Studio version. Backup files are not needed,
 # because we have git ;-)
 _UpgradeReport_Files/
-Backup*/
+Backup*
 UpgradeLog*.XML
 UpgradeLog*.htm
 ServiceFabricBackup/
@@ -272,7 +272,7 @@ ServiceFabricBackup/
 # Business Intelligence projects
 *.rdl.data
 *.bim.layout
-*.bim_*.settings
+*.bim_* .settings
 *.rptproj.rsuser
 *- [Bb]ackup.rdl
 *- [Bb]ackup ([0-9]).rdl
@@ -364,3 +364,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+.openclaw/
