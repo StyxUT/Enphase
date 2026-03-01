@@ -99,18 +99,108 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
     <title>Net Power Production</title>
     <meta http-equiv=""refresh"" content=""60"">
     <style>
-        body {{ font-weight: bold; font-family: Arial, sans-serif; background: #f8f9fa; color: #222; margin: 2em; }}
-        .container {{ background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 2em; max-width: 400px; margin: auto; }}
-        h1 {{ font-size: 1.5em; margin-bottom: 1em; }}
-        .label {{ font-weight: bold; }}
-        .value {{ font-size: 2em; }}
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }}
+        .container {{
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            padding: 2.5rem;
+            max-width: 450px;
+            width: 100%;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }}
+        .container:hover {{
+            transform: translateY(-5px);
+        }}
+        h1 {{
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+            position: relative;
+            padding-bottom: 0.5rem;
+        }}
+        h1:after {{
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+            border-radius: 3px;
+        }}
+        .label {{
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #7f8c8d;
+            margin-bottom: 0.5rem;
+        }}
+        .value {{
+            font-size: 3rem;
+            font-weight: 700;
+            margin: 1rem 0;
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }}
+        .unit {{
+            font-size: 1.2rem;
+            color: #95a5a6;
+            font-weight: 400;
+        }}
+        .status-indicator {{
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
+        }}
+        .status-good {{
+            background-color: #28a745;
+        }}
+        .status-warning {{
+            background-color: #ffc107;
+        }}
+        .status-alert {{
+            background-color: #dc3545;
+        }}
+        .footer {{
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            color: #95a5a6;
+        }}
     </style>
 </head>
 <body>
     <div class=""container"">
         <h1>Net Power Production</h1>
-        <div><span class=""label"">Current Net Power Production:</span></div>
-        <div class=""value"" style=""color: {color};"">{roundedNetPower} W</div>
+        <div class=""label"">
+            <span class=""status-indicator status-{"good" if roundedNetPower > 250 else "warning" if roundedNetPower >= 0 else "alert"}""></span>
+            Current Net Power Production:
+        </div>
+        <div class=""value"">{roundedNetPower} <span class=""unit"">W</span></div>
+        <div class=""footer"">
+            Data updates every 60 seconds
+        </div>
     </div>
 </body>
 </html>";
