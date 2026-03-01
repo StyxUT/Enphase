@@ -194,7 +194,7 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
     <div class=""container"">
         <h1>Net Power Production</h1>
         <div class=""label"">
-            <span class=""status-indicator status-{"good" if roundedNetPower > 250 else "warning" if roundedNetPower >= 0 else "alert"}""></span>
+            <span class=""status-indicator status-{(roundedNetPower > 250 ? "good" : roundedNetPower >= 0 ? "warning" : "alert")}""></span>
             Current Net Power Production:
         </div>
         <div class=""value"">{roundedNetPower} <span class=""unit"">W</span></div>
