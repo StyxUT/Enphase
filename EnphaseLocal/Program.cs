@@ -84,6 +84,27 @@ if (!app.Environment.IsProduction())
 }
 app.UseHttpLogging();
 
+// Helper method to get gradient color based on power value
+string GetGradientColor(double powerValue)
+{
+    // Map power values to a color gradient from red to yellow to green
+    if (powerValue < 0)
+    {
+        // Red for negative values (consumption)
+        return "#dc3545";
+    }
+    else if (powerValue < 100)
+    {
+        // Yellow for low positive values (low production)
+        return "#ffc107";
+    }
+    else
+    {
+        // Green for high positive values (high production)
+        return "#28a745";
+    }
+}
+
 // Map endpoints (moved from Endpoint.cs)
 app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
 {
@@ -156,7 +177,11 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
             font-size: 3rem;
             font-weight: 700;
             margin: 1rem 0;
-            background: linear-gradient(90deg, #3498db, #2ecc71);
+            /* Implementing a red/yellow/green gradient based on power value */
+            background: linear-gradient(90deg, 
+                {GetGradientColor(roundedNetPower)},
+                {GetGradientColor(roundedNetPower)}
+            );
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
