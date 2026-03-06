@@ -151,7 +151,7 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
     {
         var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
         var roundedNetPower = Math.Round(netPowerProduction);
-        string color = roundedNetPower > 250 ? "#28a745" : roundedNetPower >= 0 ? "#ffc107" : "#dc3545";
+        var statusClass = roundedNetPower > 250 ? "good" : roundedNetPower >= 0 ? "warning" : "alert";
 
         // Get the actual production and consumption values for the new tiles
         var productionData = await envoyClient.GetProductionDataAsync();
@@ -177,6 +177,7 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
         // Replace placeholders with actual values
         var html = htmlTemplate
             .Replace("{GetGradientColor(roundedNetPower)}", GetGradientColor(roundedNetPower))
+            .Replace("{statusClass}", statusClass)
             .Replace("{roundedNetPower}", roundedNetPower.ToString())
             .Replace("{GetPowerProductionGradient(currentProduction)}", GetPowerProductionGradient(currentProduction))
             .Replace("{currentProduction}", currentProduction.ToString("F0"))

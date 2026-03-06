@@ -131,7 +131,7 @@
     <div class="container">
         <h1>Net Power Production</h1>
         <div class="label">
-            <span class="status-indicator status-{(roundedNetPower > 250 ? "good" : roundedNetPower >= 0 ? "warning" : "alert")}"></span>
+            <span class="status-indicator status-{statusClass}"></span>
             Current Net Power Production:
         </div>
         <div class="value">{roundedNetPower} <span class="unit">W</span></div>
@@ -140,7 +140,7 @@
         <div class="tile">
             <div class="tile-label">Current Power Production</div>
             <div class="tile-value" style="background: linear-gradient(90deg, {GetPowerProductionGradient(currentProduction)}, {GetPowerProductionGradient(currentProduction)}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
-                {Math.Round(currentProduction)} <span class="unit">W</span>
+                {currentProduction} <span class="unit">W</span>
             </div>
         </div>
         
@@ -148,7 +148,7 @@
         <div class="tile">
             <div class="tile-label">Power Consumption</div>
             <div class="tile-value" style="background: linear-gradient(90deg, {GetPowerConsumptionGradient(currentConsumption)}, {GetPowerConsumptionGradient(currentConsumption)}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
-                {Math.Round(currentConsumption)} <span class="unit">W</span>
+                {currentConsumption} <span class="unit">W</span>
             </div>
         </div>
         
