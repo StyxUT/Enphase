@@ -155,7 +155,11 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
 
         // Get the actual production and consumption values for the new tiles
         var productionData = await envoyClient.GetProductionDataAsync();
-        double currentProduction = productionData.Production.FirstOrDefault()?.WNow ?? 0;
+        
+        // Use the same logic for UI display as for net calculation to ensure consistency
+        var productionEim = productionData.Production
+            .FirstOrDefault(p => string.Equals(p.Type, "eim", StringComparison.OrdinalIgnoreCase));
+        double currentProduction = productionEim?.WNow ?? productionData.Production.FirstOrDefault()?.WNow ?? 0;
         double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
 
         // Read the HTML template (prefer content root; fall back to base directory)
