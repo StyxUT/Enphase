@@ -105,6 +105,42 @@ string GetGradientColor(double powerValue)
     }
 }
 
+// Helper method to get power production gradient (gray to green)
+string GetPowerProductionGradient(double powerValue)
+{
+    // Return gray when production is 0, green when above 2000
+    if (powerValue <= 0)
+        return "#6c757d"; // Gray
+    else if (powerValue >= 2000)
+        return "#28a745"; // Green
+    else
+    {
+        // Interpolate between gray and green
+        double ratio = powerValue / 2000.0;
+        int gray = (int)(108 - 108 * ratio); // 108 = 0x6c in decimal
+        int green = (int)(167 * ratio); // 167 = 0xa7 in decimal
+        return $"#{gray:x2}00{green:x2}";
+    }
+}
+
+// Helper method to get power consumption gradient (gray to red)
+string GetPowerConsumptionGradient(double powerValue)
+{
+    // Return gray when consumption is below 2000, red when above 4000
+    if (powerValue <= 2000)
+        return "#6c757d"; // Gray
+    else if (powerValue >= 4000)
+        return "#dc3545"; // Red
+    else
+    {
+        // Interpolate between gray and red
+        double ratio = (powerValue - 2000) / 2000.0;
+        int gray = (int)(108 - 108 * ratio); // 108 = 0x6c in decimal
+        int red = (int)(220 * ratio); // 220 = 0xdc in decimal
+        return $"#{red:x2}{gray:x2}{gray:x2}";
+    }
+}
+
 // Map endpoints (moved from Endpoint.cs)
 app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
 {
@@ -112,123 +148,24 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
     var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
     var roundedNetPower = Math.Round(netPowerProduction);
     string color = roundedNetPower > 250 ? "#28a745" : roundedNetPower >= 0 ? "#ffc107" : "#dc3545";
-    var html = $@"<!DOCTYPE html>
-<html lang=""en"">
-<head>
-    <meta charset=""UTF-8"">
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
-    <title>Net Power Production</title>
-    <meta http-equiv=""refresh"" content=""60"">
-    <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
-            color: #333;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 1rem;
-        }}
-        .container {{
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            padding: 2.5rem;
-            max-width: 450px;
-            width: 100%;
-            text-align: center;
-            transition: transform 0.3s ease;
-        }}
-        .container:hover {{
-            transform: translateY(-5px);
-        }}
-        h1 {{
-            font-size: 1.8rem;
-            margin-bottom: 1.5rem;
-            font-weight: 600;
-            color: #2c3e50;
-            position: relative;
-            padding-bottom: 0.5rem;
-        }}
-        h1:after {{
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 60px;
-            height: 3px;
-            background: linear-gradient(90deg, #3498db, #2ecc71);
-            border-radius: 3px;
-        }}
-        .label {{
-            font-size: 1.1rem;
-            font-weight: 500;
-            color: #7f8c8d;
-            margin-bottom: 0.5rem;
-        }}
-        .value {{
-            font-size: 3rem;
-            font-weight: 700;
-            margin: 1rem 0;
-            /* Implementing a red/yellow/green gradient based on power value */
-            background: linear-gradient(90deg, 
-                {GetGradientColor(roundedNetPower)},
-                {GetGradientColor(roundedNetPower)}
-            );
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }}
-        .unit {{
-            font-size: 1.2rem;
-            color: #95a5a6;
-            font-weight: 400;
-        }}
-        .status-indicator {{
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
-            vertical-align: middle;
-        }}
-        .status-good {{
-            background-color: #28a745;
-        }}
-        .status-warning {{
-            background-color: #ffc107;
-        }}
-        .status-alert {{
-            background-color: #dc3545;
-        }}
-        .footer {{
-            margin-top: 2rem;
-            font-size: 0.9rem;
-            color: #95a5a6;
-        }}
-    </style>
-</head>
-<body>
-    <div class=""container"">
-        <h1>Net Power Production</h1>
-        <div class=""label"">
-            <span class=""status-indicator status-{(roundedNetPower > 250 ? "good" : roundedNetPower >= 0 ? "warning" : "alert")}""></span>
-            Current Net Power Production:
-        </div>
-        <div class=""value"">{roundedNetPower} <span class=""unit"">W</span></div>
-        <div class=""footer"">
-            Data updates every 60 seconds
-        </div>
-    </div>
-</body>
-</html>";
+    
+    // Get the actual production and consumption values for the new tiles
+    var productionData = await envoyClient.GetProductionDataAsync();
+    double currentProduction = productionData.Production.FirstOrDefault()?.WNow ?? 0;
+    double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
+    
+    // Read the HTML template
+    var htmlTemplate = File.ReadAllText("./Views/NetPowerProduction.html");
+    
+    // Replace placeholders with actual values
+    var html = htmlTemplate
+        .Replace("{GetGradientColor(roundedNetPower)}", GetGradientColor(roundedNetPower))
+        .Replace("{roundedNetPower}", roundedNetPower.ToString())
+        .Replace("{GetPowerProductionGradient(currentProduction)}", GetPowerProductionGradient(currentProduction))
+        .Replace("{currentProduction}", currentProduction.ToString("F0"))
+        .Replace("{GetPowerConsumptionGradient(currentConsumption)}", GetPowerConsumptionGradient(currentConsumption))
+        .Replace("{currentConsumption}", currentConsumption.ToString("F0"));
+    
     return Results.Content(html, "text/html");
 });
 
