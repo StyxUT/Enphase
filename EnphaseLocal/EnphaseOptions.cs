@@ -1,8 +1,7 @@
-﻿namespace EnphaseLocal
+namespace EnphaseLocal;
+
+public sealed class EnphaseOptions
 {
-    public class EnphaseOptions
-    {
-        public string BearerToken { get; set; }
-        public string BaseAddress{ get; set; }
-    }
+    public string BearerToken { get; set; } = string.Empty;
+    public string BaseAddress { get; set; } = string.Empty;
 }
