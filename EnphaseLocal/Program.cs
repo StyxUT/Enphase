@@ -203,3 +203,5 @@ app.MapGet("/consumption", async (IEnphaseService envoyClient, ILogger<Program> 
 app.Logger.LogInformation("Enphase Local v0.1.2");
 
 app.Run();
+
+public partial class Program;
