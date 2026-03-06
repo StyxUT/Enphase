@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Extensions.Http;
+using System.IO;
 using System.Runtime.CompilerServices;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -155,7 +156,17 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
     double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
     
     // Read the HTML template
-    var htmlTemplate = File.ReadAllText("./Views/NetPowerProduction.html");
+    var viewPath = Path.Combine(AppContext.BaseDirectory, "Views", "NetPowerProduction.html");
+    if (!File.Exists(viewPath))
+    {
+        // If the file doesn't exist in the base directory, try looking relative to the current directory
+        viewPath = "./Views/NetPowerProduction.html";
+        if (!File.Exists(viewPath))
+        {
+            throw new FileNotFoundException($"Could not find the view file at {viewPath} or {Path.Combine(AppContext.BaseDirectory, "Views", "NetPowerProduction.html")}");
+        }
+    }
+    var htmlTemplate = File.ReadAllText(viewPath);
     
     // Replace placeholders with actual values
     var html = htmlTemplate
