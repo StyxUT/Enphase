@@ -6,6 +6,7 @@ using Polly;
 using Polly.Extensions.Http;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -146,38 +147,52 @@ string GetPowerConsumptionGradient(double powerValue)
 app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
 {
     logger.LogDebug("GET NetPowerProduction called");
-    var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
-    var roundedNetPower = Math.Round(netPowerProduction);
-    string color = roundedNetPower > 250 ? "#28a745" : roundedNetPower >= 0 ? "#ffc107" : "#dc3545";
-    
-    // Get the actual production and consumption values for the new tiles
-    var productionData = await envoyClient.GetProductionDataAsync();
-    double currentProduction = productionData.Production.FirstOrDefault()?.WNow ?? 0;
-    double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
-    
-    // Read the HTML template
-    var viewPath = Path.Combine(AppContext.BaseDirectory, "Views", "NetPowerProduction.html");
-    if (!File.Exists(viewPath))
+    try
     {
-        // If the file doesn't exist in the base directory, try looking relative to the current directory
-        viewPath = "./Views/NetPowerProduction.html";
+        var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
+        var roundedNetPower = Math.Round(netPowerProduction);
+        string color = roundedNetPower > 250 ? "#28a745" : roundedNetPower >= 0 ? "#ffc107" : "#dc3545";
+
+        // Get the actual production and consumption values for the new tiles
+        var productionData = await envoyClient.GetProductionDataAsync();
+        double currentProduction = productionData.Production.FirstOrDefault()?.WNow ?? 0;
+        double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
+
+        // Read the HTML template (prefer content root; fall back to base directory)
+        var viewPath = Path.Combine(app.Environment.ContentRootPath, "Views", "NetPowerProduction.html");
         if (!File.Exists(viewPath))
         {
-            throw new FileNotFoundException($"Could not find the view file at {viewPath} or {Path.Combine(AppContext.BaseDirectory, "Views", "NetPowerProduction.html")}");
+            var baseDirViewPath = Path.Combine(AppContext.BaseDirectory, "Views", "NetPowerProduction.html");
+            if (File.Exists(baseDirViewPath))
+            {
+                viewPath = baseDirViewPath;
+            }
+            else
+            {
+                throw new FileNotFoundException($"Could not find the view file at {viewPath} or {baseDirViewPath}");
+            }
         }
+        var htmlTemplate = File.ReadAllText(viewPath);
+
+        // Replace placeholders with actual values
+        var html = htmlTemplate
+            .Replace("{GetGradientColor(roundedNetPower)}", GetGradientColor(roundedNetPower))
+            .Replace("{roundedNetPower}", roundedNetPower.ToString())
+            .Replace("{GetPowerProductionGradient(currentProduction)}", GetPowerProductionGradient(currentProduction))
+            .Replace("{currentProduction}", currentProduction.ToString("F0"))
+            .Replace("{GetPowerConsumptionGradient(currentConsumption)}", GetPowerConsumptionGradient(currentConsumption))
+            .Replace("{currentConsumption}", currentConsumption.ToString("F0"));
+
+        return Results.Content(html, "text/html");
     }
-    var htmlTemplate = File.ReadAllText(viewPath);
-    
-    // Replace placeholders with actual values
-    var html = htmlTemplate
-        .Replace("{GetGradientColor(roundedNetPower)}", GetGradientColor(roundedNetPower))
-        .Replace("{roundedNetPower}", roundedNetPower.ToString())
-        .Replace("{GetPowerProductionGradient(currentProduction)}", GetPowerProductionGradient(currentProduction))
-        .Replace("{currentProduction}", currentProduction.ToString("F0"))
-        .Replace("{GetPowerConsumptionGradient(currentConsumption)}", GetPowerConsumptionGradient(currentConsumption))
-        .Replace("{currentConsumption}", currentConsumption.ToString("F0"));
-    
-    return Results.Content(html, "text/html");
+    catch (HttpRequestException ex)
+    {
+        logger.LogError(ex, "Envoy request failed with status code {StatusCode}", ex.StatusCode);
+        return Results.Problem(
+            title: "Upstream Envoy request failed",
+            detail: ex.StatusCode == HttpStatusCode.Unauthorized ? "Envoy returned 401 Unauthorized" : ex.Message,
+            statusCode: StatusCodes.Status502BadGateway);
+    }
 });
 
 app.MapGet("/healthcheck", (IEnphaseService envoyClient, ILogger<Program> logger) =>
@@ -189,15 +204,37 @@ app.MapGet("/healthcheck", (IEnphaseService envoyClient, ILogger<Program> logger
 app.MapGet("/production", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
 {
     logger.LogDebug("GET Production called");
-    var data = await envoyClient.GetProductionDataAsync();
-    return Results.Ok(data.Production);
+    try
+    {
+        var data = await envoyClient.GetProductionDataAsync();
+        return Results.Ok(data.Production);
+    }
+    catch (HttpRequestException ex)
+    {
+        logger.LogError(ex, "Envoy request failed with status code {StatusCode}", ex.StatusCode);
+        return Results.Problem(
+            title: "Upstream Envoy request failed",
+            detail: ex.StatusCode == HttpStatusCode.Unauthorized ? "Envoy returned 401 Unauthorized" : ex.Message,
+            statusCode: StatusCodes.Status502BadGateway);
+    }
 });
 
 app.MapGet("/consumption", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
 {
     logger.LogDebug("GET Consumption called");
-    var data = await envoyClient.GetProductionDataAsync();
-    return Results.Ok(data.Consumption);
+    try
+    {
+        var data = await envoyClient.GetProductionDataAsync();
+        return Results.Ok(data.Consumption);
+    }
+    catch (HttpRequestException ex)
+    {
+        logger.LogError(ex, "Envoy request failed with status code {StatusCode}", ex.StatusCode);
+        return Results.Problem(
+            title: "Upstream Envoy request failed",
+            detail: ex.StatusCode == HttpStatusCode.Unauthorized ? "Envoy returned 401 Unauthorized" : ex.Message,
+            statusCode: StatusCodes.Status502BadGateway);
+    }
 });
 
 app.Logger.LogInformation("Enphase Local v0.1.2");

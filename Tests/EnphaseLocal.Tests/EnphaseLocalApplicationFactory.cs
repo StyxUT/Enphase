@@ -13,32 +13,19 @@ public sealed class EnphaseLocalApplicationFactory : WebApplicationFactory<Progr
     {
         builder.UseEnvironment("Development");
 
-        EnsureNetPowerProductionTemplateAvailable();
+        // Ensure the app's content root is set to the EnphaseLocal project directory
+        // so the HTML template can be found at Views/NetPowerProduction.html.
+        var contentRoot = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "EnphaseLocal"));
+        builder.UseContentRoot(contentRoot);
 
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IEnphaseService>();
             services.AddSingleton<IEnphaseService>(new FakeEnphaseService());
         });
-    }
-
-    private static void EnsureNetPowerProductionTemplateAvailable()
-    {
-        var baseDirViews = Path.Combine(AppContext.BaseDirectory, "Views");
-        var baseDirTemplate = Path.Combine(baseDirViews, "NetPowerProduction.html");
-        if (File.Exists(baseDirTemplate))
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(baseDirViews);
-
-        var sourceTemplate = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "EnphaseLocal", "Views", "NetPowerProduction.html"));
-
-        File.Copy(sourceTemplate, baseDirTemplate, overwrite: true);
     }
 
     private sealed class FakeEnphaseService : IEnphaseService
