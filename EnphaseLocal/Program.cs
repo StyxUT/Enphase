@@ -105,6 +105,42 @@ string GetGradientColor(double powerValue)
     }
 }
 
+// Helper method to get power production gradient (gray to green)
+string GetPowerProductionGradient(double powerValue)
+{
+    // Return gray when production is 0, green when above 2000
+    if (powerValue <= 0)
+        return "#6c757d"; // Gray
+    else if (powerValue >= 2000)
+        return "#28a745"; // Green
+    else
+    {
+        // Interpolate between gray and green
+        double ratio = powerValue / 2000.0;
+        int gray = (int)(108 - 108 * ratio); // 108 = 0x6c in decimal
+        int green = (int)(167 * ratio); // 167 = 0xa7 in decimal
+        return $"#{gray:x2}00{green:x2}";
+    }
+}
+
+// Helper method to get power consumption gradient (gray to red)
+string GetPowerConsumptionGradient(double powerValue)
+{
+    // Return gray when consumption is below 2000, red when above 4000
+    if (powerValue <= 2000)
+        return "#6c757d"; // Gray
+    else if (powerValue >= 4000)
+        return "#dc3545"; // Red
+    else
+    {
+        // Interpolate between gray and red
+        double ratio = (powerValue - 2000) / 2000.0;
+        int gray = (int)(108 - 108 * ratio); // 108 = 0x6c in decimal
+        int red = (int)(220 * ratio); // 220 = 0xdc in decimal
+        return $"#{red:x2}{gray:x2}{gray:x2}";
+    }
+}
+
 // Map endpoints (moved from Endpoint.cs)
 app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
 {
@@ -112,6 +148,12 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
     var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
     var roundedNetPower = Math.Round(netPowerProduction);
     string color = roundedNetPower > 250 ? "#28a745" : roundedNetPower >= 0 ? "#ffc107" : "#dc3545";
+    
+    // Get the actual production and consumption values for the new tiles
+    var productionData = await envoyClient.GetProductionDataAsync();
+    double currentProduction = productionData.Production.FirstOrDefault()?.WNow ?? 0;
+    double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
+    
     var html = $@"<!DOCTYPE html>
 <html lang=""en"">
 <head>
@@ -140,7 +182,7 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
             border-radius: 16px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
             padding: 2.5rem;
-            max-width: 450px;
+            max-width: 600px;
             width: 100%;
             text-align: center;
             transition: transform 0.3s ease;
@@ -213,6 +255,32 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
             font-size: 0.9rem;
             color: #95a5a6;
         }}
+        .tile {{
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            transition: transform 0.3s ease;
+        }}
+        .tile:hover {{
+            transform: translateY(-3px);
+        }}
+        .tile h2 {{
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+        }}
+        .tile-value {{
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }}
+        .tile-label {{
+            font-size: 1rem;
+            color: #7f8c8d;
+            margin-bottom: 0.5rem;
+        }}
     </style>
 </head>
 <body>
@@ -223,6 +291,23 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
             Current Net Power Production:
         </div>
         <div class=""value"">{roundedNetPower} <span class=""unit"">W</span></div>
+        
+        <!-- New Tile 1: Current Power Production -->
+        <div class=""tile"">
+            <div class=""tile-label"">Current Power Production</div>
+            <div class=""tile-value"" style=""background: linear-gradient(90deg, {GetPowerProductionGradient(currentProduction)}, {GetPowerProductionGradient(currentProduction)}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"">
+                {Math.Round(currentProduction)} <span class=""unit"">W</span>
+            </div>
+        </div>
+        
+        <!-- New Tile 2: Power Consumption -->
+        <div class=""tile"">
+            <div class=""tile-label"">Power Consumption</div>
+            <div class=""tile-value"" style=""background: linear-gradient(90deg, {GetPowerConsumptionGradient(currentConsumption)}, {GetPowerConsumptionGradient(currentConsumption)}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"">
+                {Math.Round(currentConsumption)} <span class=""unit"">W</span>
+            </div>
+        </div>
+        
         <div class=""footer"">
             Data updates every 60 seconds
         </div>
