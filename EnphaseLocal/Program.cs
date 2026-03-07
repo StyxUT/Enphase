@@ -144,6 +144,10 @@ string GetPowerConsumptionGradient(double powerValue)
     }
 }
 
+// Get the assembly version for display
+var assembly = typeof(Program).Assembly;
+var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "v0.1.3";
+
 // Map endpoints (moved from Endpoint.cs)
 app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
 {
@@ -243,10 +247,6 @@ app.MapGet("/consumption", async (IEnphaseService envoyClient, ILogger<Program> 
             statusCode: StatusCodes.Status502BadGateway);
     }
 });
-
-// Get the assembly version for display
-var assembly = typeof(Program).Assembly;
-var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "v0.1.3";
 
 app.Logger.LogInformation("Enphase Local {Version}", version);
 

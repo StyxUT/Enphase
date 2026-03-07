@@ -71,12 +71,19 @@ public class EnphaseService : IEnphaseService
             throw new InvalidOperationException("Production data is not available.");
         }
 
-        // Use the 'eim' type for net production if available, otherwise fallback to first
+        // Get production value using eim type with production measurement type if available
+        // Fall back to first production entry if eim production not found
         var productionEim = _productionDataDto.Production
-            .FirstOrDefault(p => string.Equals(p.Type, "eim", StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(p => string.Equals(p.Type, "eim", StringComparison.OrdinalIgnoreCase) && 
+                               string.Equals(p.MeasurementType, "production", StringComparison.OrdinalIgnoreCase));
         var productionWNow = productionEim?.WNow ?? _productionDataDto.Production.FirstOrDefault()?.WNow ?? 0;
 
-        var consumptionWNow = _productionDataDto.Consumption.FirstOrDefault()?.WNow ?? 0;
+        // Get consumption value using eim type with total-consumption measurement type if available
+        // Fall back to first consumption entry if eim consumption not found
+        var consumptionEim = _productionDataDto.Consumption
+            .FirstOrDefault(c => string.Equals(c.Type, "eim", StringComparison.OrdinalIgnoreCase) && 
+                               string.Equals(c.MeasurementType, "total-consumption", StringComparison.OrdinalIgnoreCase));
+        var consumptionWNow = consumptionEim?.WNow ?? _productionDataDto.Consumption.FirstOrDefault()?.WNow ?? 0;
 
         var netPowerProduction = productionWNow - consumptionWNow;
 
