@@ -7,6 +7,7 @@ using Polly.Extensions.Http;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Net;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -186,7 +187,8 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
             .Replace("{GetPowerProductionGradient(currentProduction)}", GetPowerProductionGradient(currentProduction))
             .Replace("{currentProduction}", currentProduction.ToString("F0"))
             .Replace("{GetPowerConsumptionGradient(currentConsumption)}", GetPowerConsumptionGradient(currentConsumption))
-            .Replace("{currentConsumption}", currentConsumption.ToString("F0"));
+            .Replace("{currentConsumption}", currentConsumption.ToString("F0"))
+            .Replace("{version}", version);
 
         return Results.Content(html, "text/html");
     }
@@ -242,7 +244,11 @@ app.MapGet("/consumption", async (IEnphaseService envoyClient, ILogger<Program> 
     }
 });
 
-app.Logger.LogInformation("Enphase Local v0.1.2");
+// Get the assembly version for display
+var assembly = typeof(Program).Assembly;
+var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "v0.1.2";
+
+app.Logger.LogInformation("Enphase Local {Version}", version);
 
 app.Run();
 
