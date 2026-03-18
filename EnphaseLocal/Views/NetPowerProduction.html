@@ -130,13 +130,18 @@
 <body>
     <div class="container">
         <h1>Net Power Production</h1>
-        <div class="label">
-            <span class="status-indicator status-{statusClass}"></span>
-            Current Net Power Production:
+        <!-- Tile 1: Current Net Power Production -->
+        <div class="tile">
+            <div class="tile-label">
+                <span class="status-indicator status-{statusClass}"></span>
+                Current Net Power Production
+            </div>
+            <div class="tile-value" style="background: linear-gradient(90deg, {GetGradientColor(roundedNetPower)}, {GetGradientColor(roundedNetPower)}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                {roundedNetPower} <span class="unit">W</span>
+            </div>
         </div>
-        <div class="value">{roundedNetPower} <span class="unit">W</span></div>
         
-        <!-- New Tile 1: Current Power Production -->
+        <!-- Tile 2: Current Power Production -->
         <div class="tile">
             <div class="tile-label">Current Power Production</div>
             <div class="tile-value" style="background: linear-gradient(90deg, {GetPowerProductionGradient(currentProduction)}, {GetPowerProductionGradient(currentProduction)}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
@@ -144,9 +149,9 @@
             </div>
         </div>
         
-        <!-- New Tile 2: Power Consumption -->
+        <!-- Tile 3: Current Power Consumption -->
         <div class="tile">
-            <div class="tile-label">Power Consumption</div>
+            <div class="tile-label">Current Power Consumption</div>
             <div class="tile-value" style="background: linear-gradient(90deg, {GetPowerConsumptionGradient(currentConsumption)}, {GetPowerConsumptionGradient(currentConsumption)}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
                 {currentConsumption} <span class="unit">W</span>
             </div>
