@@ -1,5 +1,6 @@
 using EnphaseLocal;
 using EnphaseLocal.Services;
+using EnphaseLocal.Models.DTO;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.Extensions.Options;
 using Polly;
@@ -237,6 +238,40 @@ app.MapGet("/consumption", async (IEnphaseService envoyClient, ILogger<Program> 
     {
         var data = await envoyClient.GetProductionDataAsync();
         return Results.Ok(data.Consumption);
+    }
+    catch (HttpRequestException ex)
+    {
+        logger.LogError(ex, "Envoy request failed with status code {StatusCode}", ex.StatusCode);
+        return Results.Problem(
+            title: "Upstream Envoy request failed",
+            detail: ex.StatusCode == HttpStatusCode.Unauthorized ? "Envoy returned 401 Unauthorized" : ex.Message,
+            statusCode: StatusCodes.Status502BadGateway);
+    }
+});
+
+app.MapGet("/powermetrics", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
+{
+    logger.LogDebug("GET PowerMetrics called");
+    try
+    {
+        var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
+        var productionData = await envoyClient.GetProductionDataAsync();
+        
+        // Get current production value (from EIM meter)
+        var productionEim = productionData.Production
+            .FirstOrDefault(p => string.Equals(p.Type, "eim", StringComparison.OrdinalIgnoreCase));
+        double currentProduction = productionEim?.WNow ?? productionData.Production.FirstOrDefault()?.WNow ?? 0;
+        
+        // Get current consumption value
+        double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
+        
+        var metrics = new PowerMetricsDto(
+            NetPowerProduction: Math.Round(netPowerProduction, 2),
+            PowerProduction: Math.Round(currentProduction, 2),
+            PowerConsumption: Math.Round(currentConsumption, 2)
+        );
+        
+        return Results.Ok(metrics);
     }
     catch (HttpRequestException ex)
     {
