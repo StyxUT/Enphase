@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using EnphaseLocal.Models;
+using EnphaseLocal.Models.DTO;
 using EnphaseLocal.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -58,6 +59,54 @@ public sealed class BasicEndpointsTests : IClassFixture<EnphaseLocalApplicationF
         Assert.NotNull(items);
         Assert.NotEmpty(items);
         Assert.Equal(500.0, items[0].WNow);
+    }
+
+    [Fact]
+    public async Task PowerMetrics_ReturnsJsonWithCorrectValues()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/powermetrics");
+
+        response.EnsureSuccessStatusCode();
+
+        var metrics = await response.Content.ReadFromJsonAsync<PowerMetricsDto>();
+        Assert.NotNull(metrics);
+        Assert.Equal(500.0, metrics.NetPowerProduction);
+        Assert.Equal(1000.0, metrics.PowerProduction);
+        Assert.Equal(500.0, metrics.PowerConsumption);
+    }
+
+    [Fact]
+    public async Task PowerMetrics_WhenEnvoyUnauthorized_ReturnsBadGatewayProblemDetails()
+    {
+        using var factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.UseEnvironment("Development");
+
+                var contentRoot = Path.GetFullPath(Path.Combine(
+                    AppContext.BaseDirectory,
+                    "..", "..", "..", "..", "..",
+                    "EnphaseLocal"));
+                builder.UseContentRoot(contentRoot);
+
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IEnphaseService>();
+                    services.AddSingleton<IEnphaseService>(new UnauthorizedEnphaseService());
+                });
+            });
+
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Accept.Clear();
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        var response = await client.GetAsync("/powermetrics");
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.NotNull(response.Content.Headers.ContentType);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType.MediaType);
     }
 
     [Fact]
