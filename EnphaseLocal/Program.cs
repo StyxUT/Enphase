@@ -9,6 +9,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Net;
 using System.Reflection;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,29 +45,11 @@ var retryPolicy = HttpPolicyExtensions
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Named HttpClient for internal service calls - NOT NEEDED SINCE WE'RE CALLING SERVICE DIRECTLY
+// builder.Services.AddHttpClient("Enphase", ...);  // Commented out - not required
+
 builder.Services.AddHttpClient<IEnphaseService, EnphaseService>()
-    .ConfigureHttpClient((serviceProvider, client) =>
-    {
-        var optionsMonitor = serviceProvider.GetRequiredService<IOptionsMonitor<EnphaseOptions>>();
-        var enphaseOptions = optionsMonitor.CurrentValue;
-        client.BaseAddress = new Uri(enphaseOptions.BaseAddress);
-
-        // React to changes in options
-        optionsMonitor.OnChange(newOptions =>
-        {
-            client.BaseAddress = new Uri(newOptions.BaseAddress);
-        });
-    })
-    .AddPolicyHandler(retryPolicy)
-    .ConfigurePrimaryHttpMessageHandler(() =>
-    {
-        var handler = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-        };
-
-        return handler;
-    });
+    .AddPolicyHandler(retryPolicy);
 
 builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteOptions>(options =>
 {
@@ -149,52 +132,75 @@ string GetPowerConsumptionGradient(double powerValue)
 var assembly = typeof(Program).Assembly;
 var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "v0.1.3";
 
+// Helper function to construct PowerMetricsDto from service calls
+async Task<PowerMetricsDto> CreatePowerMetricsDtoAsync(IEnphaseService envoyClient, ILogger logger)
+{
+    var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
+    var productionData = await envoyClient.GetProductionDataAsync();
+    
+    // Get current production value (from EIM meter)
+    var productionEim = productionData.Production
+        .FirstOrDefault(p => string.Equals(p.Type, "eim", StringComparison.OrdinalIgnoreCase));
+    double currentProduction = productionEim?.WNow ?? productionData.Production.FirstOrDefault()?.WNow ?? 0;
+    
+    // Get current consumption value
+    double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
+    
+    return new PowerMetricsDto(
+        NetPowerProduction: Math.Round(netPowerProduction, 2),
+        PowerProduction: Math.Round(currentProduction, 2),
+        PowerConsumption: Math.Round(currentConsumption, 2)
+    );
+}
+
+// Helper function to create HTML response from PowerMetricsDto
+(string HtmlContent, string StatusClass) CreateNetPowerProductionHtml(PowerMetricsDto metrics)
+{
+    var roundedNetPower = Math.Round(metrics.NetPowerProduction);
+    var statusClass = roundedNetPower > 250 ? "good" : roundedNetPower >= 0 ? "warning" : "alert";
+    double currentProduction = Math.Round(metrics.PowerProduction);
+    double currentConsumption = Math.Round(metrics.PowerConsumption);
+
+    // Read the HTML template (prefer content root; fall back to base directory)
+    var viewPath = Path.Combine(app.Environment.ContentRootPath, "Views", "NetPowerProduction.html");
+    if (!File.Exists(viewPath))
+    {
+        var baseDirViewPath = Path.Combine(AppContext.BaseDirectory, "Views", "NetPowerProduction.html");
+        if (File.Exists(baseDirViewPath))
+        {
+            viewPath = baseDirViewPath;
+        }
+        else
+        {
+            throw new FileNotFoundException($"Could not find the view file at {viewPath} or {baseDirViewPath}");
+        }
+    }
+    var htmlTemplate = File.ReadAllText(viewPath);
+
+    // Replace placeholders with actual values
+    var html = htmlTemplate
+        .Replace("{GetGradientColor(roundedNetPower)}", GetGradientColor(roundedNetPower))
+        .Replace("{statusClass}", statusClass)
+        .Replace("{roundedNetPower}", roundedNetPower.ToString())
+        .Replace("{GetPowerProductionGradient(currentProduction)}", GetPowerProductionGradient(currentProduction))
+        .Replace("{currentProduction}", currentProduction.ToString("F0"))
+        .Replace("{GetPowerConsumptionGradient(currentConsumption)}", GetPowerConsumptionGradient(currentConsumption))
+        .Replace("{currentConsumption}", currentConsumption.ToString("F0"))
+        .Replace("{version}", version);
+
+    return (html, statusClass);
+}
+
 // Map endpoints (moved from Endpoint.cs)
 app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
 {
     logger.LogDebug("GET NetPowerProduction called");
     try
     {
-        var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
-        var roundedNetPower = Math.Round(netPowerProduction);
-        var statusClass = roundedNetPower > 250 ? "good" : roundedNetPower >= 0 ? "warning" : "alert";
+        // Fetch data using the same logic as /powermetrics endpoint
+        var metrics = await CreatePowerMetricsDtoAsync(envoyClient, logger);
 
-        // Get the actual production and consumption values for the new tiles
-        var productionData = await envoyClient.GetProductionDataAsync();
-        
-        // Use the same logic for UI display as for net calculation to ensure consistency
-        var productionEim = productionData.Production
-            .FirstOrDefault(p => string.Equals(p.Type, "eim", StringComparison.OrdinalIgnoreCase));
-        double currentProduction = productionEim?.WNow ?? productionData.Production.FirstOrDefault()?.WNow ?? 0;
-        double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
-
-        // Read the HTML template (prefer content root; fall back to base directory)
-        var viewPath = Path.Combine(app.Environment.ContentRootPath, "Views", "NetPowerProduction.html");
-        if (!File.Exists(viewPath))
-        {
-            var baseDirViewPath = Path.Combine(AppContext.BaseDirectory, "Views", "NetPowerProduction.html");
-            if (File.Exists(baseDirViewPath))
-            {
-                viewPath = baseDirViewPath;
-            }
-            else
-            {
-                throw new FileNotFoundException($"Could not find the view file at {viewPath} or {baseDirViewPath}");
-            }
-        }
-        var htmlTemplate = File.ReadAllText(viewPath);
-
-        // Replace placeholders with actual values
-        var html = htmlTemplate
-            .Replace("{GetGradientColor(roundedNetPower)}", GetGradientColor(roundedNetPower))
-            .Replace("{statusClass}", statusClass)
-            .Replace("{roundedNetPower}", roundedNetPower.ToString())
-            .Replace("{GetPowerProductionGradient(currentProduction)}", GetPowerProductionGradient(currentProduction))
-            .Replace("{currentProduction}", currentProduction.ToString("F0"))
-            .Replace("{GetPowerConsumptionGradient(currentConsumption)}", GetPowerConsumptionGradient(currentConsumption))
-            .Replace("{currentConsumption}", currentConsumption.ToString("F0"))
-            .Replace("{version}", version);
-
+        var (html, _) = CreateNetPowerProductionHtml(metrics);
         return Results.Content(html, "text/html");
     }
     catch (HttpRequestException ex)
