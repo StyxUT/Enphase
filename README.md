@@ -99,6 +99,14 @@ docker run -p 8080:80 \
   enphase-local
 ```
 
+### Kubernetes (K3s)
+
+Kubernetes manifests for deploying this application on K3s are available at [github.com/styxut/k3s-Enphase](https://github.com/styxut/k3s-Enphase). The manifests include a Deployment, Service, and Kustomize overlay — deploy with:
+
+```bash
+kubectl apply -k https://github.com/styxut/k3s-Enphase
+```
+
 ## API Reference
 
 | Endpoint | Method | Response |
