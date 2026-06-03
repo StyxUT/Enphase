@@ -27,3 +27,17 @@ Style & Conventions:
 - Swagger: always enabled; endpoints `/swagger` and `/swagger/v1/swagger.json` should remain accessible in all environments.
 
 No existing Cursor or Copilot rules detected; follow this file for agent guidance.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as GitHub issues in this repo. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The label vocabulary uses the five canonical roles with default names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout. See `docs/agents/domain.md`.
