@@ -49,6 +49,10 @@ builder.Services.AddSwaggerGen();
 // builder.Services.AddHttpClient("Enphase", ...);  // Commented out - not required
 
 builder.Services.AddHttpClient<IEnphaseService, EnphaseService>()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+    })
     .AddPolicyHandler(retryPolicy);
 
 builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteOptions>(options =>

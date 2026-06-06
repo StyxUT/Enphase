@@ -17,6 +17,7 @@ public class EnphaseService : IEnphaseService
     {
         _httpClient = httpClient;
         _logger = logger;
+        _httpClient.BaseAddress = new Uri(options.Value.BaseAddress);
         var bearerToken = options.Value.BearerToken;
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
 
