@@ -73,6 +73,15 @@ All Enphase-specific settings live under the `"Enphase"` config section:
 
 The bearer token can also be supplied via environment variable `Enphase__BearerToken` or User Secrets during development.
 
+### Obtaining a token
+
+Tokens can be obtained or refreshed at `https://entrez.enphaseenergy.com/`:
+
+1. Navigate to `https://entrez.enphaseenergy.com/` and sign in with your Enphase account.
+2. Provide your system name.
+3. Select the gateway (identified by its Serial number).
+4. Copy the generated token and use it as the `Enphase__BearerToken` value.
+
 ## Running
 
 ### Local development
@@ -113,10 +122,28 @@ kubectl apply -k https://github.com/styxut/k3s-Enphase
 |----------|--------|----------|
 | `/netpowerproduction` | GET | HTML dashboard (auto-refresh every 60 s) |
 | `/healthcheck` | GET | `204 No Content` |
+| `/envoydiagnostics` | GET | Safe Envoy connectivity/auth diagnostics |
 | `/production` | GET | JSON array of production meters |
 | `/consumption` | GET | JSON array of consumption meters |
 
 All JSON endpoints return `application/json`. On upstream Envoy failure (`HttpRequestException`), they return `502 Bad Gateway` with `application/problem+json`.
+
+### `/envoydiagnostics`
+
+Returns sanitized diagnostics for troubleshooting local Envoy access without exposing the bearer token:
+
+```json
+{
+  "baseAddress": "https://envoy.home/",
+  "baseAddressValid": true,
+  "tokenConfigured": true,
+  "dnsAddresses": ["192.168.107.82"],
+  "dnsError": null,
+  "upstreamStatusCode": 200,
+  "upstreamReasonPhrase": "OK",
+  "upstreamError": null
+}
+```
 
 ### `/netpowerproduction`
 

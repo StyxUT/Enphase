@@ -8,6 +8,8 @@ using Polly.Extensions.Http;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Text.Json;
 
@@ -54,6 +56,12 @@ builder.Services.AddHttpClient<IEnphaseService, EnphaseService>()
         ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
     })
     .AddPolicyHandler(retryPolicy);
+
+builder.Services.AddHttpClient("EnvoyDiagnostics")
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+    });
 
 builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteOptions>(options =>
 {
@@ -221,6 +229,81 @@ app.MapGet("/healthcheck", (IEnphaseService envoyClient, ILogger<Program> logger
 {
     logger.LogDebug("GET HealthCheck called");
     return Results.NoContent();
+});
+
+app.MapGet("/envoydiagnostics", async (
+    IOptions<EnphaseOptions> options,
+    IHttpClientFactory httpClientFactory,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    logger.LogDebug("GET EnvoyDiagnostics called");
+
+    var enphaseOptions = options.Value;
+    var tokenConfigured = !string.IsNullOrWhiteSpace(enphaseOptions.BearerToken)
+        && !string.Equals(enphaseOptions.BearerToken, "your-bearer-token-here", StringComparison.Ordinal);
+
+    if (!Uri.TryCreate(enphaseOptions.BaseAddress, UriKind.Absolute, out var baseAddress))
+    {
+        return Results.Ok(new
+        {
+            baseAddress = enphaseOptions.BaseAddress,
+            baseAddressValid = false,
+            tokenConfigured,
+            dnsAddresses = Array.Empty<string>(),
+            dnsError = (string?)null,
+            upstreamStatusCode = (int?)null,
+            upstreamReasonPhrase = (string?)null,
+            upstreamError = "Enphase:BaseAddress is not a valid absolute URI."
+        });
+    }
+
+    string[] dnsAddresses = [];
+    string? dnsError = null;
+    try
+    {
+        dnsAddresses = (await Dns.GetHostAddressesAsync(baseAddress.Host, cancellationToken))
+            .Select(address => address.ToString())
+            .ToArray();
+    }
+    catch (Exception ex) when (ex is HttpRequestException or SocketException or OperationCanceledException)
+    {
+        dnsError = ex.Message;
+    }
+
+    int? upstreamStatusCode = null;
+    string? upstreamReasonPhrase = null;
+    string? upstreamError = null;
+    try
+    {
+        var httpClient = httpClientFactory.CreateClient("EnvoyDiagnostics");
+        httpClient.BaseAddress = baseAddress;
+        httpClient.Timeout = TimeSpan.FromSeconds(10);
+        if (tokenConfigured)
+        {
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", enphaseOptions.BearerToken);
+        }
+
+        using var response = await httpClient.GetAsync("/production.json", cancellationToken);
+        upstreamStatusCode = (int)response.StatusCode;
+        upstreamReasonPhrase = response.ReasonPhrase;
+    }
+    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
+    {
+        upstreamError = ex.Message;
+    }
+
+    return Results.Ok(new
+    {
+        baseAddress = baseAddress.ToString(),
+        baseAddressValid = true,
+        tokenConfigured,
+        dnsAddresses,
+        dnsError,
+        upstreamStatusCode,
+        upstreamReasonPhrase,
+        upstreamError
+    });
 });
 
 app.MapGet("/production", async (IEnphaseService envoyClient, ILogger<Program> logger) =>
