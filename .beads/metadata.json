@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "Enphase",
+  "project_id": "3dfbf101-a7bf-40cb-8ef8-ad3350ca2268"
+}
