@@ -149,22 +149,7 @@ async Task<PowerMetricsDto> CreatePowerMetricsDtoAsync(IEnphaseService envoyClie
 {
     var productionData = await envoyClient.GetProductionDataAsync();
     
-    // Get current production value (from EIM meter)
-    var productionEim = productionData.Production
-        .FirstOrDefault(p => string.Equals(p.Type, "eim", StringComparison.OrdinalIgnoreCase));
-    double currentProduction = productionEim?.WNow ?? productionData.Production.FirstOrDefault()?.WNow ?? 0;
-    
-    // Get current consumption value
-    double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
-
-    // Derive net power from the same readings displayed below, keeping signed consumption intact.
-    double netPowerProduction = currentProduction - currentConsumption;
-    
-    return new PowerMetricsDto(
-        NetPowerProduction: Math.Round(netPowerProduction, 2),
-        PowerProduction: Math.Round(currentProduction, 2),
-        PowerConsumption: Math.Round(currentConsumption, 2)
-    );
+    return PowerMetricsDto.FromProductionData(productionData);
 }
 
 // Helper function to create HTML response from PowerMetricsDto
@@ -216,6 +201,12 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
 
         var (html, _) = CreateNetPowerProductionHtml(metrics);
         return Results.Content(html, "text/html");
+    }
+    catch (InvalidOperationException ex)
+    {
+        logger.LogError(ex, "Invalid Envoy Energy Balance measurements");
+        return Results.Problem(title: "Invalid Envoy Energy Balance", detail: ex.Message,
+            statusCode: StatusCodes.Status502BadGateway);
     }
     catch (HttpRequestException ex)
     {
@@ -352,6 +343,12 @@ app.MapGet("/powermetrics", async (IEnphaseService envoyClient, ILogger<Program>
         var metrics = await CreatePowerMetricsDtoAsync(envoyClient);
         
         return Results.Ok(metrics);
+    }
+    catch (InvalidOperationException ex)
+    {
+        logger.LogError(ex, "Invalid Envoy Energy Balance measurements");
+        return Results.Problem(title: "Invalid Envoy Energy Balance", detail: ex.Message,
+            statusCode: StatusCodes.Status502BadGateway);
     }
     catch (HttpRequestException ex)
     {

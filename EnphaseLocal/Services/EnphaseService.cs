@@ -2,6 +2,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using EnphaseLocal.Models;
+using EnphaseLocal.Models.DTO;
 using Microsoft.Extensions.Logging;
 
 namespace EnphaseLocal.Services;
@@ -72,23 +73,6 @@ public class EnphaseService : IEnphaseService
             throw new InvalidOperationException("Production data is not available.");
         }
 
-        // Get production value using eim type with production measurement type if available
-        // Fall back to first production entry if eim production not found
-        var productionEim = _productionDataDto.Production
-            .FirstOrDefault(p => string.Equals(p.Type, "eim", StringComparison.OrdinalIgnoreCase) && 
-                               string.Equals(p.MeasurementType, "production", StringComparison.OrdinalIgnoreCase));
-        var productionWNow = productionEim?.WNow ?? _productionDataDto.Production.FirstOrDefault()?.WNow ?? 0;
-
-        // Get consumption value using eim type with total-consumption measurement type if available
-        // Fall back to first consumption entry if eim consumption not found
-        var consumptionEim = _productionDataDto.Consumption
-            .FirstOrDefault(c => string.Equals(c.Type, "eim", StringComparison.OrdinalIgnoreCase) && 
-                               string.Equals(c.MeasurementType, "total-consumption", StringComparison.OrdinalIgnoreCase));
-        var consumptionWNow = consumptionEim?.WNow ?? _productionDataDto.Consumption.FirstOrDefault()?.WNow ?? 0;
-
-        var netPowerProduction = productionWNow - consumptionWNow;
-
-        return netPowerProduction;
+        return PowerMetricsDto.FromProductionData(_productionDataDto).NetPowerProduction;
     }
 }
-

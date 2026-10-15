@@ -125,8 +125,44 @@ kubectl apply -k https://github.com/styxut/k3s-Enphase
 | `/envoydiagnostics` | GET | Safe Envoy connectivity/auth diagnostics |
 | `/production` | GET | JSON array of production meters |
 | `/consumption` | GET | JSON array of consumption meters |
+| `/powermetrics` | GET | Normalized household production, consumption, and export-positive net watts |
 
 All JSON endpoints return `application/json`. On upstream Envoy failure (`HttpRequestException`), they return `502 Bad Gateway` with `application/problem+json`.
+
+### `/powermetrics` — shared PCONXT contract
+
+```json
+{"netPowerProduction":2597,"powerProduction":6725,"powerConsumption":4128}
+```
+
+- `powerProduction`: nonnegative solar production, in watts.
+- `powerConsumption`: nonnegative **total household consumption**, including vehicle charging; not signed grid flow.
+- `netPowerProduction = powerProduction - powerConsumption`: positive **export**, negative **import**, zero balanced.
+
+The JSON endpoint, HTML dashboard, and service calculation share one conversion
+of a single Envoy snapshot. EIM `production` is selected by measurement type,
+with inverter production as a fallback. If EIM `net-consumption` exists, it is
+signed grid flow: **positive import, negative export**. Household consumption is
+`production + net-consumption`, and net production is `-net-consumption`. This
+avoids subtracting production twice or inflating export by subtracting a negative
+grid reading from production. Never use an absolute value to convert grid flow
+into household consumption.
+
+If no net-consumption meter exists, an explicitly identified EIM
+`total-consumption` is required and must be nonnegative. Missing or invalid
+measurements return HTTP 502 instead of a fabricated zero/balance. Values are
+rounded to two decimal places. Array order does not select meter meaning.
+
+The installed Envoy has been observed returning identical signed values for
+`total-consumption` and `net-consumption`; the identified grid reading therefore
+takes precedence. Raw `/production` and `/consumption` remain untouched for
+diagnostics. This normalization does not certify CT wiring or meter calibration.
+
+PCONXT reads this normalized endpoint without reversing any signs. It derives
+net from production minus consumption after truncating to integer watts; supplied
+net cannot override it (rounding may differ by less than 2 W). It rejects negative
+production/consumption, retaining its last good snapshot under normal freshness rules. For example,
+6,745 W production and 7,680 W consumption means net **-935 W (import)**.
 
 ### `/envoydiagnostics`
 
@@ -225,7 +261,7 @@ Two GitHub Actions workflows are configured:
 
 - **Enphase Envoy** — The local gateway device installed with Enphase solar systems. Exposes a local API at `/production.json` with JSON data for production, consumption, and storage meters.
 - **EIM** (Enphase Intelligence Meter) — The consumption meter type. The service prefers `eim`-type production data when calculating net power.
-- **Net Power** — `production WNow - consumption WNow`. Negative values indicate the home is consuming more than the solar array is producing.
+- **Net Power** — solar production minus total household consumption (not minus signed grid flow). Positive means export; negative means import. See the `/powermetrics` contract above.
 
 ## License
 
