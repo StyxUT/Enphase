@@ -157,6 +157,11 @@ The installed Envoy has been observed returning identical signed values for
 `total-consumption` and `net-consumption`; the identified grid reading therefore
 takes precedence. Raw `/production` and `/consumption` remain untouched for
 diagnostics. This normalization does not certify CT wiring or meter calibration.
+Direct physical meter readings corroborate the normalized household consumption;
+the duplication also occurs in Envoy's generated reports. See
+[installed meter-reading semantics](docs/meter-reading-semantics.md) for the
+read-only cross-check, split-phase power-factor interpretation and physical
+verification boundary.
 
 PCONXT reads this normalized endpoint without reversing any signs. It derives
 net from production minus consumption after truncating to integer watts; supplied

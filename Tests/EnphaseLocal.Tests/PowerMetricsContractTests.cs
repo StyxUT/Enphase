@@ -22,6 +22,7 @@ public sealed class PowerMetricsContractTests
     [InlineData(0, 1800, 1800, -1800)]
     [InlineData(1800, 0, 1800, 0)]
     [InlineData(6811, -3594.54, 3216.46, 3594.54)]
+    [InlineData(5881.192, -4175.004, 1706.19, 4175.0)]
     public async Task PowerMetrics_UsesSignedGridMeasurementRegardlessOfArrayOrder(
         double production, double gridImport, double consumption, double netProduction)
     {
@@ -48,7 +49,7 @@ public sealed class PowerMetricsContractTests
 
             var metrics = await client.GetFromJsonAsync<PowerMetricsDto>("/powermetrics");
 
-            Assert.Equal(new PowerMetricsDto(netProduction, production, consumption), metrics);
+            Assert.Equal(new PowerMetricsDto(netProduction, Math.Round(production, 2), consumption), metrics);
             Assert.Equal(netProduction, await service.GetNetPowerProductionAsync());
             var html = await client.GetStringAsync("/netpowerproduction");
             Assert.Contains($"{Math.Round(netProduction)} <span class=\"unit\">W</span>", html);
