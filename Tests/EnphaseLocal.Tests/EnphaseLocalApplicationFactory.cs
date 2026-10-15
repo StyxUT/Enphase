@@ -64,7 +64,7 @@ public sealed class EnphaseLocalApplicationFactory : WebApplicationFactory<Progr
                     ActiveCount: 1,
                     MeasurementType: "total-consumption",
                     ReadingTime: 123,
-                    WNow: 500.0,
+                    WNow: -500.0,
                     WhLifetime: 5000,
                     VarhLeadLifetime: 0,
                     VarhLagLifetime: 0,

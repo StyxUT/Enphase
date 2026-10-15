@@ -58,7 +58,7 @@ public sealed class BasicEndpointsTests : IClassFixture<EnphaseLocalApplicationF
         var items = await response.Content.ReadFromJsonAsync<ProductionDataDto.Consumption[]>();
         Assert.NotNull(items);
         Assert.NotEmpty(items);
-        Assert.Equal(500.0, items[0].WNow);
+        Assert.Equal(-500.0, items[0].WNow);
     }
 
     [Fact]
@@ -72,9 +72,9 @@ public sealed class BasicEndpointsTests : IClassFixture<EnphaseLocalApplicationF
 
         var metrics = await response.Content.ReadFromJsonAsync<PowerMetricsDto>();
         Assert.NotNull(metrics);
-        Assert.Equal(500.0, metrics.NetPowerProduction);
+        Assert.Equal(1500.0, metrics.NetPowerProduction);
         Assert.Equal(1000.0, metrics.PowerProduction);
-        Assert.Equal(500.0, metrics.PowerConsumption);
+        Assert.Equal(-500.0, metrics.PowerConsumption);
     }
 
     [Fact]

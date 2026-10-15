@@ -29,6 +29,9 @@ public sealed class NetPowerProductionEndpointTests : IClassFixture<EnphaseLocal
 
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("<title>Net Power Production</title>", html);
+        Assert.Contains("1500 <span class=\"unit\">W</span>", html);
+        Assert.Contains("1000 <span class=\"unit\">W</span>", html);
+        Assert.Contains("-500 <span class=\"unit\">W</span>", html);
         Assert.DoesNotContain("{roundedNetPower}", html);
         Assert.DoesNotContain("{statusClass}", html);
         Assert.DoesNotContain("{Math.Round", html);

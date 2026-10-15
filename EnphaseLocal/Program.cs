@@ -145,9 +145,8 @@ var assembly = typeof(Program).Assembly;
 var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "v0.1.3";
 
 // Helper function to construct PowerMetricsDto from service calls
-async Task<PowerMetricsDto> CreatePowerMetricsDtoAsync(IEnphaseService envoyClient, ILogger logger)
+async Task<PowerMetricsDto> CreatePowerMetricsDtoAsync(IEnphaseService envoyClient)
 {
-    var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
     var productionData = await envoyClient.GetProductionDataAsync();
     
     // Get current production value (from EIM meter)
@@ -157,6 +156,9 @@ async Task<PowerMetricsDto> CreatePowerMetricsDtoAsync(IEnphaseService envoyClie
     
     // Get current consumption value
     double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
+
+    // Derive net power from the same readings displayed below, keeping signed consumption intact.
+    double netPowerProduction = currentProduction - currentConsumption;
     
     return new PowerMetricsDto(
         NetPowerProduction: Math.Round(netPowerProduction, 2),
@@ -210,7 +212,7 @@ app.MapGet("/netpowerproduction", async (IEnphaseService envoyClient, ILogger<Pr
     try
     {
         // Fetch data using the same logic as /powermetrics endpoint
-        var metrics = await CreatePowerMetricsDtoAsync(envoyClient, logger);
+        var metrics = await CreatePowerMetricsDtoAsync(envoyClient);
 
         var (html, _) = CreateNetPowerProductionHtml(metrics);
         return Results.Content(html, "text/html");
@@ -347,22 +349,7 @@ app.MapGet("/powermetrics", async (IEnphaseService envoyClient, ILogger<Program>
     logger.LogDebug("GET PowerMetrics called");
     try
     {
-        var netPowerProduction = await envoyClient.GetNetPowerProductionAsync();
-        var productionData = await envoyClient.GetProductionDataAsync();
-        
-        // Get current production value (from EIM meter)
-        var productionEim = productionData.Production
-            .FirstOrDefault(p => string.Equals(p.Type, "eim", StringComparison.OrdinalIgnoreCase));
-        double currentProduction = productionEim?.WNow ?? productionData.Production.FirstOrDefault()?.WNow ?? 0;
-        
-        // Get current consumption value
-        double currentConsumption = productionData.Consumption.FirstOrDefault()?.WNow ?? 0;
-        
-        var metrics = new PowerMetricsDto(
-            NetPowerProduction: Math.Round(netPowerProduction, 2),
-            PowerProduction: Math.Round(currentProduction, 2),
-            PowerConsumption: Math.Round(currentConsumption, 2)
-        );
+        var metrics = await CreatePowerMetricsDtoAsync(envoyClient);
         
         return Results.Ok(metrics);
     }
