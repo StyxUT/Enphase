@@ -11,7 +11,7 @@ Build / Run:
 Test:
 - All tests: `dotnet test Tests/EnphaseLocal.Tests/EnphaseLocal.Tests.csproj`
 - Single test by filter: `dotnet test Tests/EnphaseLocal.Tests/EnphaseLocal.Tests.csproj --filter FullyQualifiedName~EnphaseLocalTests.GetNetPowerProductionAsync_ReturnsExpectedValue`
-- Collect coverage: `dotnet test --collect:"XPlat Code Coverage"`
+- Collect authored-source coverage: `dotnet test Tests/EnphaseLocal.Tests/EnphaseLocal.Tests.csproj --collect:"XPlat Code Coverage" --settings Tests/EnphaseLocal.Tests/coverlet.runsettings`
 
 Style & Conventions:
 - Target Framework: net9.0, nullable + implicit usings enabled; do not disable.

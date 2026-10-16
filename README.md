@@ -245,16 +245,24 @@ dotnet test Tests/EnphaseLocal.Tests/EnphaseLocal.Tests.csproj \
 ```
 
 ```bash
-# With coverage
-dotnet test --collect:"XPlat Code Coverage"
+# With authored-source line and branch coverage (same settings as CI)
+dotnet test Tests/EnphaseLocal.Tests/EnphaseLocal.Tests.csproj \
+  --collect:"XPlat Code Coverage" \
+  --settings Tests/EnphaseLocal.Tests/coverlet.runsettings
 ```
+
+The Cobertura report is written under `Tests/EnphaseLocal.Tests/TestResults/` and
+includes line and branch coverage for the `EnphaseLocal` application assembly.
+Generated `obj`/`bin` source, code marked generated, and test code are excluded.
+Both GitHub Actions workflows upload this report as the
+`authored-source-coverage` artifact.
 
 ### CI/CD
 
 Two GitHub Actions workflows are configured:
 
-- **PR tests** (`.github/workflows/pr-tests.yml`) — runs on pull requests to `master`; builds and runs the test suite
-- **Docker publish** (`.github/workflows/docker-publish.yml`) — on push to `master`, builds, tests, and publishes a Docker image to `styxut/enphase-local:latest` on Docker Hub
+- **PR tests** (`.github/workflows/pr-tests.yml`) — runs on pull requests to `main`, builds and runs the test suite, and uploads authored-source coverage
+- **Docker publish** (`.github/workflows/docker-publish.yml`) — on push to `main`, tests before publishing the Docker image to `styxut/enphase-local:latest` on Docker Hub and uploads authored-source coverage
 
 ## Security Notes
 
