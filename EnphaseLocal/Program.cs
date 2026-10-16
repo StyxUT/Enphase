@@ -4,7 +4,6 @@ using EnphaseLocal.Models.DTO;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.Extensions.Options;
 using Polly;
-using Polly.Extensions.Http;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Net;
@@ -38,10 +37,8 @@ builder.Services.AddHttpLogging(logging =>
         logging.CombineLogs = true;
     });
 
-// Define the retry policy
-var retryPolicy = HttpPolicyExtensions
-    .HandleTransientHttpError()
-    .WaitAndRetryAsync(5, retryAttempt => TimeSpan.FromSeconds(Math.Pow(3, retryAttempt)));
+// Define the retry policy (delay strategy is injectable for tests; production uses 3^attempt seconds)
+var retryPolicy = TransientHttpRetryPolicy.Create(TransientHttpRetryPolicy.DelayForAttempt);
 
 // Add services to the container.
 builder.Services.AddEndpointsApiExplorer();
