@@ -9,6 +9,9 @@ public record PowerMetricsDto(
 {
     public static PowerMetricsDto FromProductionData(ProductionDataDto.Root data)
     {
+        if (data is null || data.Production is null || data.Consumption is null)
+            throw new InvalidOperationException("Production and consumption measurements are required.");
+
         var productionMeter = data.Production.FirstOrDefault(p =>
             string.Equals(p.Type, "eim", StringComparison.OrdinalIgnoreCase) &&
             string.Equals(p.MeasurementType, "production", StringComparison.OrdinalIgnoreCase))

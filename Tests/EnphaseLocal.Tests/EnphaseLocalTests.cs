@@ -64,7 +64,8 @@ namespace PowerProduction.Tests
             mockHttp.When("http://localhost/production.json").Respond("application/json", invalidJson);
             var httpClient = new HttpClient(mockHttp) { BaseAddress = new Uri("http://localhost") };
             var service = new EnphaseService(httpClient, _options, _mockLogger.Object);
-            await Assert.ThrowsAsync<System.Text.Json.JsonException>(() => service.GetProductionDataAsync());
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetProductionDataAsync());
+            Assert.IsType<System.Text.Json.JsonException>(exception.InnerException);
         }
 
         [Fact]

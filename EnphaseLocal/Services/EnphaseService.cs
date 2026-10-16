@@ -49,6 +49,11 @@ public class EnphaseService : IEnphaseService
 
             return _productionDataDto;
         }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Envoy returned malformed production data.");
+            throw new InvalidOperationException("Envoy returned malformed production data.", ex);
+        }
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, $"Error fetching production data: {ex.Message}");
