@@ -156,25 +156,33 @@ public sealed class RetryPipelineTests
             detail: "Envoy returned malformed production data.");
     }
 
-    [Fact(Skip = "Malformed upstream JSON on /production is not yet mapped to problem+json (returns 500); tracked in Enphase-4ae")]
-    public async Task Production_MalformedUpstreamBody_ReturnsProblemDetails()
+    [Theory]
+    [InlineData("/production", "{ invalid", "Envoy returned malformed production data.")]
+    [InlineData("/production", "null", "Failed to deserialize production data.")]
+    [InlineData("/consumption", "{ invalid", "Envoy returned malformed production data.")]
+    [InlineData("/consumption", "null", "Failed to deserialize production data.")]
+    public async Task DataEndpoint_InvalidUpstreamBody_ReturnsProblemDetails(
+        string route,
+        string upstreamBody,
+        string expectedDetail)
     {
         var handler = new ScriptedHttpMessageHandler(
-            new ScriptedHttpMessageHandler.Step(HttpStatusCode.OK, "{ invalid"));
+            new ScriptedHttpMessageHandler.Step(HttpStatusCode.OK, upstreamBody));
 
         using var factory = CreatePipelineFactory(handler);
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Accept.Clear();
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-        var response = await client.GetAsync("/production");
+        var response = await client.GetAsync(route);
         var body = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType!.MediaType);
         AssertProblemDetails(body,
             title: "Invalid Envoy Energy Balance",
-            detail: "Envoy returned malformed production data.");
+            detail: expectedDetail);
+        Assert.DoesNotContain("wNow", body);
     }
 
     private static WebApplicationFactory<Program> CreatePipelineFactory(HttpMessageHandler primaryHandler)

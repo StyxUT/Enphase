@@ -304,6 +304,12 @@ app.MapGet("/production", async (IEnphaseService envoyClient, ILogger<Program> l
         var data = await envoyClient.GetProductionDataAsync();
         return Results.Ok(data.Production);
     }
+    catch (InvalidOperationException ex)
+    {
+        logger.LogError(ex, "Invalid Envoy Energy Balance measurements");
+        return Results.Problem(title: "Invalid Envoy Energy Balance", detail: ex.Message,
+            statusCode: StatusCodes.Status502BadGateway);
+    }
     catch (HttpRequestException ex)
     {
         logger.LogError(ex, "Envoy request failed with status code {StatusCode}", ex.StatusCode);
@@ -321,6 +327,12 @@ app.MapGet("/consumption", async (IEnphaseService envoyClient, ILogger<Program> 
     {
         var data = await envoyClient.GetProductionDataAsync();
         return Results.Ok(data.Consumption);
+    }
+    catch (InvalidOperationException ex)
+    {
+        logger.LogError(ex, "Invalid Envoy Energy Balance measurements");
+        return Results.Problem(title: "Invalid Envoy Energy Balance", detail: ex.Message,
+            statusCode: StatusCodes.Status502BadGateway);
     }
     catch (HttpRequestException ex)
     {
