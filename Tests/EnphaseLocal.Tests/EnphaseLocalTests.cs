@@ -1,357 +1,164 @@
-﻿using Castle.Components.DictionaryAdapter.Xml;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Moq;
-using System.Net.Http.Headers;
-using EnphaseLocal.Services;
+using System.Text.Json;
 using EnphaseLocal;
+using EnphaseLocal.Services;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using RichardSzalay.MockHttp;
-using EnphaseLocal.Models;
 
+namespace EnphaseLocal.Tests;
 
-namespace PowerProduction.Tests
+public sealed class EnphaseLocalTests
 {
-    public class EnphaseLocalTests
+    private const string EnvoyAddress = "http://envoy.example:8080";
+    private const string ProductionPath = "/production.json";
+
+    [Theory]
+    [InlineData(500, 650, -150)] // Import: household load exceeds production.
+    [InlineData(800, 300, 500)]  // Export: production exceeds household load.
+    [InlineData(400, 400, 0)]    // Balanced: production equals household load.
+    public async Task GetNetPowerProductionAsync_ReturnsExactNetForImportExportAndBalance(
+        double productionWatts,
+        double consumptionWatts,
+        double expectedNetWatts)
     {
-        private readonly EnphaseService _enphaseLocal;
-        private readonly HttpClient _httpClient;
-        private readonly IOptions<EnphaseOptions> _options;
-        private readonly Mock<ILogger<EnphaseService>> _mockLogger;
+        using var handler = new MockHttpMessageHandler();
+        handler.Expect(HttpMethod.Get, EnvoyAddress + ProductionPath)
+            .Respond("application/json", CreatePayload(productionWatts, consumptionWatts));
+        using var httpClient = new HttpClient(handler);
+        var service = CreateService(httpClient);
 
-        public EnphaseLocalTests()
-        {
-            _options = Options.Create(new EnphaseOptions { BearerToken = "asdf", BaseAddress = "http://localhost" });
-            var mockHttp = new MockHttpMessageHandler();
-            var fakeJson = @"{""production"": [{""type"": ""inverters"", ""activeCount"": 1, ""readingTime"": 123, ""wNow"": 1000.0, ""whLifetime"": 10000}], ""consumption"": [{""type"": ""eim"", ""activeCount"": 1, ""measurementType"": ""total-consumption"", ""readingTime"": 123, ""wNow"": 500.0, ""whLifetime"": 5000}], ""storage"": []}";
-            mockHttp.When("http://localhost/production.json").Respond("application/json", fakeJson);
-            _httpClient = new HttpClient(mockHttp) { BaseAddress = new Uri("http://localhost") };
-            _mockLogger = new Mock<ILogger<EnphaseService>>();
-            _enphaseLocal = new EnphaseService(_httpClient, _options, _mockLogger.Object);
-        }
+        var netPower = await service.GetNetPowerProductionAsync();
 
-        [Fact]
-        public async Task GetMeterDataAsync_ResultIsNotZero()
-        {
-            // Arrange
-            _enphaseLocal.GetType().GetProperty("_client")?.SetValue(_enphaseLocal, _httpClient);
-            _httpClient.DefaultRequestHeaders.Accept.Clear();
-            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("Applicaiton/json"));
-
-            // Act
-            var result = await _enphaseLocal.GetNetPowerProductionAsync();
-
-            // Assert
-            Assert.True(result != 0, "Net power production should not be zero.");
-        }
-
-        [Fact]
-        public async Task EnphaseLocal_GetNetPowerProduction_IsNotZero()
-        {
-            _enphaseLocal.GetType().GetProperty("_client")?.SetValue(_enphaseLocal, _httpClient);
-            _httpClient.DefaultRequestHeaders.Accept.Clear();
-            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("Applicaiton/json"));
-
-            var netPowerProduction = await _enphaseLocal.GetNetPowerProductionAsync();
-
-            Assert.True(netPowerProduction != 0, "Net power production should not be zero.");
-        }
-
-        [Fact]
-        public async Task GetProductionDataAsync_ThrowsOnInvalidJson()
-        {
-            var mockHttp = new MockHttpMessageHandler();
-            var invalidJson = @"{ invalid json }";
-            mockHttp.When("http://localhost/production.json").Respond("application/json", invalidJson);
-            var httpClient = new HttpClient(mockHttp) { BaseAddress = new Uri("http://localhost") };
-            var service = new EnphaseService(httpClient, _options, _mockLogger.Object);
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetProductionDataAsync());
-            Assert.IsType<System.Text.Json.JsonException>(exception.InnerException);
-        }
-
-        [Fact]
-        public async Task GetProductionDataAsync_ThrowsOnHttpError()
-        {
-            var mockHttp = new MockHttpMessageHandler();
-            mockHttp.When("http://localhost/production.json").Respond(System.Net.HttpStatusCode.InternalServerError);
-            var httpClient = new HttpClient(mockHttp) { BaseAddress = new Uri("http://localhost") };
-            var service = new EnphaseService(httpClient, _options, _mockLogger.Object);
-            await Assert.ThrowsAsync<HttpRequestException>(() => service.GetProductionDataAsync());
-        }
-
-        [Fact]
-        public void CalculateNetPowerProduction_ThrowsIfNoData()
-        {
-            Assert.Throws<InvalidOperationException>(() => _enphaseLocal.CalculateNetPowerProduction());
-        }
-
-        [Fact]
-        public async Task GetNetPowerProductionAsync_ReturnsExpectedValue()
-        {
-            var result = await _enphaseLocal.GetNetPowerProductionAsync();
-            Assert.Equal(500.0, result);
-        }
-
-        [Fact]
-        public void CalculateNetPowerProduction_CorrectlyCalculatesNetPower()
-        {
-            // Arrange
-            var production = new List<ProductionDataDto.Production>
-            {
-                new ProductionDataDto.Production(
-                    Type: "inverters",
-                    ActiveCount: 1,
-                    ReadingTime: 123,
-                    WNow: 1500.0,
-                    WhLifetime: 10000,
-                    MeasurementType: "production",
-                    VarhLeadLifetime: null,
-                    VarhLagLifetime: null,
-                    VahLifetime: null,
-                    RmsCurrent: null,
-                    RmsVoltage: null,
-                    ReactPwr: null,
-                    ApprntPwr: null,
-                    PwrFactor: null,
-                    WhToday: null,
-                    WhLastSevenDays: null,
-                    VahToday: null,
-                    VarhLeadToday: null,
-                    VarhLagToday: null,
-                    Lines: new List<ProductionDataDto.Line>()
-                )
-            };
-            var consumption = new List<ProductionDataDto.Consumption>
-            {
-                new ProductionDataDto.Consumption(
-                    Type: "eim",
-                    ActiveCount: 1,
-                    MeasurementType: "total-consumption",
-                    ReadingTime: 123,
-                    WNow: 400.0,
-                    WhLifetime: 5000,
-                    VarhLeadLifetime: 0,
-                    VarhLagLifetime: 0,
-                    VahLifetime: 0,
-                    RmsCurrent: 0,
-                    RmsVoltage: 0,
-                    ReactPwr: 0,
-                    ApprntPwr: 0,
-                    PwrFactor: 0,
-                    WhToday: 0,
-                    WhLastSevenDays: 0,
-                    VahToday: 0,
-                    VarhLeadToday: 0,
-                    VarhLagToday: 0,
-                    Lines: new List<ProductionDataDto.Line>()
-                )
-            };
-            var storage = new List<ProductionDataDto.Storage>();
-            var root = new ProductionDataDto.Root(production, consumption, storage);
-
-            var mockHttp = new MockHttpMessageHandler();
-            var options = Options.Create(new EnphaseOptions { BearerToken = "asdf", BaseAddress = "http://localhost" });
-            var httpClient = new HttpClient(mockHttp) { BaseAddress = new Uri("http://localhost") };
-            var service = new EnphaseService(httpClient, options, _mockLogger.Object);
-
-            // Use reflection to set the private _productionDataDto field
-            var field = typeof(EnphaseService).GetField("_productionDataDto", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (field == null)
-                throw new Exception("Could not find _productionDataDto field via reflection");
-            field.SetValue(service, root);
-
-            // Act
-            var netPower = service.CalculateNetPowerProduction();
-
-            // Assert
-            Assert.Equal(1100.0, netPower);
-        }
-
-        [Fact]
-        public void CalculateNetPowerProduction_UsesEimProductionMeasurementType()
-        {
-            // Arrange
-            var production = new List<ProductionDataDto.Production>
-            {
-                new ProductionDataDto.Production(
-                    Type: "eim",
-                    ActiveCount: 1,
-                    ReadingTime: 123,
-                    WNow: 2000.0,
-                    WhLifetime: 10000,
-                    MeasurementType: "production",
-                    VarhLeadLifetime: null,
-                    VarhLagLifetime: null,
-                    VahLifetime: null,
-                    RmsCurrent: null,
-                    RmsVoltage: null,
-                    ReactPwr: null,
-                    ApprntPwr: null,
-                    PwrFactor: null,
-                    WhToday: null,
-                    WhLastSevenDays: null,
-                    VahToday: null,
-                    VarhLeadToday: null,
-                    VarhLagToday: null,
-                    Lines: new List<ProductionDataDto.Line>()
-                ),
-                new ProductionDataDto.Production(
-                    Type: "inverters",
-                    ActiveCount: 1,
-                    ReadingTime: 123,
-                    WNow: 1000.0,
-                    WhLifetime: 5000,
-                    MeasurementType: "production",
-                    VarhLeadLifetime: null,
-                    VarhLagLifetime: null,
-                    VahLifetime: null,
-                    RmsCurrent: null,
-                    RmsVoltage: null,
-                    ReactPwr: null,
-                    ApprntPwr: null,
-                    PwrFactor: null,
-                    WhToday: null,
-                    WhLastSevenDays: null,
-                    VahToday: null,
-                    VarhLeadToday: null,
-                    VarhLagToday: null,
-                    Lines: new List<ProductionDataDto.Line>()
-                )
-            };
-            var consumption = new List<ProductionDataDto.Consumption>
-            {
-                new ProductionDataDto.Consumption(
-                    Type: "eim",
-                    ActiveCount: 1,
-                    MeasurementType: "total-consumption",
-                    ReadingTime: 123,
-                    WNow: 500.0,
-                    WhLifetime: 2000,
-                    VarhLeadLifetime: 0,
-                    VarhLagLifetime: 0,
-                    VahLifetime: 0,
-                    RmsCurrent: 0,
-                    RmsVoltage: 0,
-                    ReactPwr: 0,
-                    ApprntPwr: 0,
-                    PwrFactor: 0,
-                    WhToday: 0,
-                    WhLastSevenDays: 0,
-                    VahToday: 0,
-                    VarhLeadToday: 0,
-                    VarhLagToday: 0,
-                    Lines: new List<ProductionDataDto.Line>()
-                )
-            };
-            var storage = new List<ProductionDataDto.Storage>();
-            var root = new ProductionDataDto.Root(production, consumption, storage);
-
-            var options = Options.Create(new EnphaseOptions { BearerToken = "asdf", BaseAddress = "http://localhost" });
-            var httpClient = new HttpClient(new MockHttpMessageHandler()) { BaseAddress = new Uri("http://localhost") };
-            var service = new EnphaseService(httpClient, options, _mockLogger.Object);
-
-            var field = typeof(EnphaseService).GetField("_productionDataDto", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (field == null) throw new Exception("Could not find _productionDataDto field via reflection");
-            field.SetValue(service, root);
-
-            // Act
-            var netPower = service.CalculateNetPowerProduction();
-
-            // Assert
-            Assert.Equal(1500.0, netPower); // 2000 - 500
-        }
-
-        [Fact]
-        public void CalculateNetPowerProduction_UsesEimConsumptionMeasurementType()
-        {
-            // Arrange
-            var production = new List<ProductionDataDto.Production>
-            {
-                new ProductionDataDto.Production(
-                    Type: "inverters",
-                    ActiveCount: 1,
-                    ReadingTime: 123,
-                    WNow: 1500.0,
-                    WhLifetime: 8000,
-                    MeasurementType: "production",
-                    VarhLeadLifetime: null,
-                    VarhLagLifetime: null,
-                    VahLifetime: null,
-                    RmsCurrent: null,
-                    RmsVoltage: null,
-                    ReactPwr: null,
-                    ApprntPwr: null,
-                    PwrFactor: null,
-                    WhToday: null,
-                    WhLastSevenDays: null,
-                    VahToday: null,
-                    VarhLeadToday: null,
-                    VarhLagToday: null,
-                    Lines: new List<ProductionDataDto.Line>()
-                )
-            };
-            var consumption = new List<ProductionDataDto.Consumption>
-            {
-                new ProductionDataDto.Consumption(
-                    Type: "eim",
-                    ActiveCount: 1,
-                    MeasurementType: "total-consumption",
-                    ReadingTime: 123,
-                    WNow: 400.0,
-                    WhLifetime: 1500,
-                    VarhLeadLifetime: 0,
-                    VarhLagLifetime: 0,
-                    VahLifetime: 0,
-                    RmsCurrent: 0,
-                    RmsVoltage: 0,
-                    ReactPwr: 0,
-                    ApprntPwr: 0,
-                    PwrFactor: 0,
-                    WhToday: 0,
-                    WhLastSevenDays: 0,
-                    VahToday: 0,
-                    VarhLeadToday: 0,
-                    VarhLagToday: 0,
-                    Lines: new List<ProductionDataDto.Line>()
-                ),
-                new ProductionDataDto.Consumption(
-                    Type: "utility",
-                    ActiveCount: 1,
-                    MeasurementType: "total-consumption",
-                    ReadingTime: 123,
-                    WNow: 600.0,
-                    WhLifetime: 2500,
-                    VarhLeadLifetime: 0,
-                    VarhLagLifetime: 0,
-                    VahLifetime: 0,
-                    RmsCurrent: 0,
-                    RmsVoltage: 0,
-                    ReactPwr: 0,
-                    ApprntPwr: 0,
-                    PwrFactor: 0,
-                    WhToday: 0,
-                    WhLastSevenDays: 0,
-                    VahToday: 0,
-                    VarhLeadToday: 0,
-                    VarhLagToday: 0,
-                    Lines: new List<ProductionDataDto.Line>()
-                )
-            };
-            var storage = new List<ProductionDataDto.Storage>();
-            var root = new ProductionDataDto.Root(production, consumption, storage);
-
-            var options = Options.Create(new EnphaseOptions { BearerToken = "asdf", BaseAddress = "http://localhost" });
-            var httpClient = new HttpClient(new MockHttpMessageHandler()) { BaseAddress = new Uri("http://localhost") };
-            var service = new EnphaseService(httpClient, options, _mockLogger.Object);
-
-            var field = typeof(EnphaseService).GetField("_productionDataDto", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (field == null) throw new Exception("Could not find _productionDataDto field via reflection");
-            field.SetValue(service, root);
-
-            // Act
-            var netPower = service.CalculateNetPowerProduction();
-
-            // Assert
-            Assert.Equal(1100.0, netPower); // 1500 - 400
-        }
+        Assert.Equal(expectedNetWatts, netPower);
+        handler.VerifyNoOutstandingExpectation();
     }
+
+    [Fact]
+    public async Task GetNetPowerProductionAsync_UsesLatestUpstreamReadingsOnEachCall()
+    {
+        using var handler = new MockHttpMessageHandler();
+        handler.Expect(HttpMethod.Get, EnvoyAddress + ProductionPath)
+            .Respond("application/json", CreatePayload(1000, 900));
+        handler.Expect(HttpMethod.Get, EnvoyAddress + ProductionPath)
+            .Respond("application/json", CreatePayload(1000, 600));
+        using var httpClient = new HttpClient(handler);
+        var service = CreateService(httpClient);
+
+        var firstNetPower = await service.GetNetPowerProductionAsync();
+        var secondNetPower = await service.GetNetPowerProductionAsync();
+
+        Assert.Equal(100, firstNetPower);
+        Assert.Equal(400, secondNetPower);
+        handler.VerifyNoOutstandingExpectation();
+    }
+
+    [Fact]
+    public async Task GetProductionDataAsync_UsesConfiguredRequestAndMapsJsonPropertyNamesCaseInsensitively()
+    {
+        const string payload = """
+            {
+              "PrOdUcTiOn": [
+                { "TyPe": "inverters", "ActiveCount": 1, "ReadingTime": 123, "WnOw": 1250, "WhLifetime": 10000, "MeasurementType": "production" }
+              ],
+              "cOnSuMpTiOn": [
+                { "Type": "eim", "ActiveCount": 1, "MeasurementType": "total-consumption", "rEaDiNgTiMe": 123, "WnOw": 250, "WhLifetime": 5000 }
+              ],
+              "StOrAgE": []
+            }
+            """;
+        using var handler = new MockHttpMessageHandler();
+        handler.Expect(HttpMethod.Get, EnvoyAddress + ProductionPath)
+            .WithHeaders("Authorization", "Bearer dummy-token")
+            .Respond("application/json", payload);
+        using var httpClient = new HttpClient(handler);
+        var service = CreateService(httpClient);
+
+        var data = await service.GetProductionDataAsync();
+        var netPower = service.CalculateNetPowerProduction();
+
+        Assert.Equal(1250, data.Production[0].WNow);
+        Assert.Equal(250, data.Consumption[0].WNow);
+        Assert.Equal(1000, netPower);
+        handler.VerifyNoOutstandingExpectation();
+    }
+
+    [Fact]
+    public async Task GetNetPowerProductionAsync_PrefersIdentifiedEimMeasurementsOverOtherMeters()
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            production = new[]
+            {
+                new { type = "inverters", activeCount = 1, readingTime = 123, wNow = 1000, whLifetime = 5000, measurementType = "production" },
+                new { type = "eim", activeCount = 1, readingTime = 123, wNow = 2000, whLifetime = 10000, measurementType = "production" }
+            },
+            consumption = new[]
+            {
+                new { type = "utility", activeCount = 1, measurementType = "total-consumption", readingTime = 123, wNow = 600, whLifetime = 2500 },
+                new { type = "eim", activeCount = 1, measurementType = "total-consumption", readingTime = 123, wNow = 500, whLifetime = 2000 }
+            },
+            storage = Array.Empty<object>()
+        });
+        using var handler = new MockHttpMessageHandler();
+        handler.Expect(HttpMethod.Get, EnvoyAddress + ProductionPath)
+            .Respond("application/json", payload);
+        using var httpClient = new HttpClient(handler);
+        var service = CreateService(httpClient);
+
+        var netPower = await service.GetNetPowerProductionAsync();
+
+        Assert.Equal(1500, netPower);
+        handler.VerifyNoOutstandingExpectation();
+    }
+
+    [Fact]
+    public void CalculateNetPowerProduction_BeforeFetchingData_Throws()
+    {
+        using var handler = new MockHttpMessageHandler();
+        using var httpClient = new HttpClient(handler);
+        var service = CreateService(httpClient);
+
+        var exception = Assert.Throws<InvalidOperationException>(() => service.CalculateNetPowerProduction());
+
+        Assert.Equal("Production data is not available.", exception.Message);
+    }
+
+    private static EnphaseService CreateService(HttpClient httpClient) => new(
+        httpClient,
+        Options.Create(new EnphaseOptions
+        {
+            BaseAddress = EnvoyAddress,
+            BearerToken = "dummy-token"
+        }),
+        NullLogger<EnphaseService>.Instance);
+
+    private static string CreatePayload(double productionWatts, double consumptionWatts) =>
+        JsonSerializer.Serialize(new
+        {
+            production = new[]
+            {
+                new
+                {
+                    type = "inverters",
+                    activeCount = 1,
+                    readingTime = 123,
+                    wNow = productionWatts,
+                    whLifetime = 10000,
+                    measurementType = "production"
+                }
+            },
+            consumption = new[]
+            {
+                new
+                {
+                    type = "eim",
+                    activeCount = 1,
+                    measurementType = "total-consumption",
+                    readingTime = 123,
+                    wNow = consumptionWatts,
+                    whLifetime = 5000
+                }
+            },
+            storage = Array.Empty<object>()
+        });
 }
