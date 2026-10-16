@@ -1,4 +1,5 @@
 using EnphaseLocal;
+using EnphaseLocal.Diagnostics;
 using EnphaseLocal.Services;
 using EnphaseLocal.Models.DTO;
 using Microsoft.AspNetCore.HttpLogging;
@@ -59,6 +60,7 @@ builder.Services.AddHttpClient("EnvoyDiagnostics")
     {
         ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
     });
+builder.Services.AddSingleton<IEnvoyDiagnosticsDnsResolver, SystemEnvoyDiagnosticsDnsResolver>();
 
 builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteOptions>(options =>
 {
@@ -224,6 +226,7 @@ app.MapGet("/healthcheck", (IEnphaseService envoyClient, ILogger<Program> logger
 app.MapGet("/envoydiagnostics", async (
     IOptions<EnphaseOptions> options,
     IHttpClientFactory httpClientFactory,
+    IEnvoyDiagnosticsDnsResolver dnsResolver,
     ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
@@ -232,6 +235,9 @@ app.MapGet("/envoydiagnostics", async (
     var enphaseOptions = options.Value;
     var tokenConfigured = !string.IsNullOrWhiteSpace(enphaseOptions.BearerToken)
         && !string.Equals(enphaseOptions.BearerToken, "your-bearer-token-here", StringComparison.Ordinal);
+    string SanitizeSensitiveValue(string value) => string.IsNullOrEmpty(enphaseOptions.BearerToken)
+        ? value
+        : value.Replace(enphaseOptions.BearerToken, "[REDACTED]", StringComparison.OrdinalIgnoreCase);
 
     if (!Uri.TryCreate(enphaseOptions.BaseAddress, UriKind.Absolute, out var baseAddress))
     {
@@ -252,13 +258,13 @@ app.MapGet("/envoydiagnostics", async (
     string? dnsError = null;
     try
     {
-        dnsAddresses = (await Dns.GetHostAddressesAsync(baseAddress.Host, cancellationToken))
+        dnsAddresses = (await dnsResolver.ResolveAsync(baseAddress.Host, cancellationToken))
             .Select(address => address.ToString())
             .ToArray();
     }
     catch (Exception ex) when (ex is HttpRequestException or SocketException or OperationCanceledException)
     {
-        dnsError = ex.Message;
+        dnsError = SanitizeSensitiveValue(ex.Message);
     }
 
     int? upstreamStatusCode = null;
@@ -266,7 +272,7 @@ app.MapGet("/envoydiagnostics", async (
     string? upstreamError = null;
     try
     {
-        var httpClient = httpClientFactory.CreateClient("EnvoyDiagnostics");
+        using var httpClient = httpClientFactory.CreateClient("EnvoyDiagnostics");
         httpClient.BaseAddress = baseAddress;
         httpClient.Timeout = TimeSpan.FromSeconds(10);
         if (tokenConfigured)
@@ -276,11 +282,11 @@ app.MapGet("/envoydiagnostics", async (
 
         using var response = await httpClient.GetAsync("/production.json", cancellationToken);
         upstreamStatusCode = (int)response.StatusCode;
-        upstreamReasonPhrase = response.ReasonPhrase;
+        upstreamReasonPhrase = response.ReasonPhrase is null ? null : SanitizeSensitiveValue(response.ReasonPhrase);
     }
     catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
     {
-        upstreamError = ex.Message;
+        upstreamError = SanitizeSensitiveValue(ex.Message);
     }
 
     return Results.Ok(new
