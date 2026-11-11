@@ -1,6 +1,6 @@
 # EnphaseLocal
 
-A .NET 10 minimal API that acts as a local gateway to an [Enphase Envoy](https://enphase.com/en-us/support/envoy) solar inverter system. Fetches live production and consumption data from the Envoy's JSON endpoint and exposes it via HTTP for dashboards, automation, or local monitoring.
+A .NET 11 minimal API that acts as a local gateway to an [Enphase Envoy](https://enphase.com/en-us/support/envoy) solar inverter system. Fetches live production and consumption data from the Envoy's JSON endpoint and exposes it via HTTP for dashboards, automation, or local monitoring.
 
 ## Features
 
@@ -24,7 +24,7 @@ A .NET 10 minimal API that acts as a local gateway to an [Enphase Envoy](https:/
 └─────────────┘                       └──────────────┘
        ▲
        │
-       │  .NET 10 Minimal API
+       │  .NET 11 Minimal API
        │  ┌─────────────────────┐
        │  │  Program.cs         │
        │  │  EnphaseService     │── HttpClient
@@ -37,7 +37,7 @@ The API uses a **minimal API** pattern (no `Startup` class). Configuration is lo
 
 ## Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- [.NET 11 SDK](https://dotnet.microsoft.com/download/dotnet/11.0)
 - An Enphase Envoy on your local network with its local API enabled
 - (Optional) Docker for containerized deployment
 

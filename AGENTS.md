@@ -14,7 +14,7 @@ Test:
 - Collect authored-source coverage: `dotnet test Tests/EnphaseLocal.Tests/EnphaseLocal.Tests.csproj --collect:"XPlat Code Coverage" --settings Tests/EnphaseLocal.Tests/coverlet.runsettings`
 
 Style & Conventions:
-- Target Framework: net9.0, nullable + implicit usings enabled; do not disable.
+- Target Framework: net11.0, nullable + implicit usings enabled; do not disable.
 - File-scoped namespaces; `using` directives at top (implicit usings allowed, avoid redundant imports).
 - Prefer `async`/`await`; return concrete types (`Task<T>`, not `ValueTask` unless performance-proven).
 - Use DI for HttpClient; no `new HttpClient()` outside tests; configure headers via delegating handlers/options.
